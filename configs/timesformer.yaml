@@ -1,0 +1,19 @@
+# TimeSformer Configuration
+
+model:
+  backbone: "timesformer"
+  temporal_model: "timesformer"
+  feature_dim: 768
+  dropout: 0.3
+  
+  timesformer:
+    attention_type: "divided_space_time"
+    num_frames: 8
+    pretrained: true
+
+training:
+  batch_size: 2  # TimeSformer is memory-heavy
+  epochs: 30
+  optimizer:
+    lr: 2.0e-5
+    backbone_lr: 2.0e-6
