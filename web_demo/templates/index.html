@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Surgical AI | Phase Recognition</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f8fafc; }
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .neon-text {
+            text-shadow: 0 0 10px rgba(56, 189, 248, 0.5), 0 0 20px rgba(56, 189, 248, 0.3);
+        }
+        .upload-area {
+            border: 2px dashed #38bdf8;
+            transition: all 0.3s ease;
+        }
+        .upload-area:hover, .upload-area.dragover {
+            background: rgba(56, 189, 248, 0.1);
+            border-color: #7dd3fc;
+        }
+        
+        /* Phase colors */
+        .phase-0 { border-left: 4px solid #3b82f6; } /* Blue */
+        .phase-1 { border-left: 4px solid #10b981; } /* Green */
+        .phase-2 { border-left: 4px solid #f59e0b; } /* Orange */
+        .phase-3 { border-left: 4px solid #ef4444; } /* Red */
+        .phase-4 { border-left: 4px solid #8b5cf6; } /* Purple */
+        .phase-5 { border-left: 4px solid #06b6d4; } /* Cyan */
+        .phase-6 { border-left: 4px solid #f43f5e; } /* Rose */
+        
+        .loader {
+            border-top-color: #38bdf8;
+            -webkit-animation: spinner 1.5s linear infinite;
+            animation: spinner 1.5s linear infinite;
+        }
+        @keyframes spinner {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+
+    <header class="mb-10 text-center">
+        <h1 class="text-4xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-sky-400 to-indigo-500 mb-2">
+            Surgical AI Analytics
+        </h1>
+        <p class="text-slate-400 text-lg">Real-time Laparoscopic Phase Recognition & Tool Detection</p>
+    </header>
+
+    <main class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Left Column: Upload & Video Player -->
+        <div class="lg:col-span-1 space-y-6">
+            <!-- Upload Panel -->
+            <div class="glass-panel rounded-2xl p-6">
+                <h2 class="text-xl font-semibold mb-4 text-sky-400 flex items-center">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                    Input Source
+                </h2>
+                
+                <div id="dropZone" class="upload-area rounded-xl p-8 text-center cursor-pointer mb-4">
+                    <input type="file" id="videoInput" accept="video/mp4,video/avi" class="hidden">
+                    <svg class="mx-auto h-12 w-12 text-sky-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                    <p class="text-sm text-slate-300 font-medium">Drag & drop surgical video</p>
+                    <p class="text-xs text-slate-500 mt-1">MP4, AVI up to 100MB</p>
+                </div>
+                
+                <button id="analyzeBtn" class="w-full bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold py-3 px-4 rounded-xl shadow-lg transition-all transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed">
+                    Analyze Workflow
+                </button>
+            </div>
+
+            <!-- Current Stats -->
+            <div id="statsPanel" class="glass-panel rounded-2xl p-6 hidden">
+                <h3 class="text-slate-400 text-sm font-semibold uppercase tracking-wider mb-2">Current Phase</h3>
+                <div id="currentPhase" class="text-2xl font-bold text-sky-400 mb-4">Waiting...</div>
+                
+                <h3 class="text-slate-400 text-sm font-semibold uppercase tracking-wider mb-2">Active Tools</h3>
+                <div id="currentTools" class="flex flex-wrap gap-2">
+                    <span class="text-slate-500 italic">None detected</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Results Dashboard -->
+        <div class="lg:col-span-2">
+            <div class="glass-panel rounded-2xl p-6 h-full min-h-[600px] flex flex-col relative">
+                
+                <!-- Loading Overlay -->
+                <div id="loadingOverlay" class="absolute inset-0 bg-slate-900/80 backdrop-blur-sm rounded-2xl flex flex-col items-center justify-center z-10 hidden">
+                    <div class="loader ease-linear rounded-full border-4 border-t-4 border-slate-700 h-16 w-16 mb-4"></div>
+                    <h2 class="text-xl font-semibold text-sky-400 animate-pulse">Running Deep Neural Networks...</h2>
+                    <p class="text-slate-400 mt-2 text-sm">Extracting spatial and temporal features</p>
+                </div>
+
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-xl font-semibold text-sky-400 flex items-center">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                        Workflow Timeline
+                    </h2>
+                    <div id="timeCounter" class="text-slate-400 font-mono">00:00 / 00:00</div>
+                </div>
+
+                <!-- Timeline Chart -->
+                <div class="w-full h-48 mb-6 relative">
+                    <canvas id="timelineChart"></canvas>
+                </div>
+
+                <!-- Frames Stream -->
+                <h3 class="text-lg font-medium text-slate-300 mb-3 border-b border-slate-700 pb-2">Analysis Stream</h3>
+                <div id="resultsStream" class="flex-1 overflow-y-auto space-y-3 pr-2">
+                    <div class="h-full flex items-center justify-center text-slate-500">
+                        Upload a video to begin analysis.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const videoInput = document.getElementById('videoInput');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        const resultsStream = document.getElementById('resultsStream');
+        const statsPanel = document.getElementById('statsPanel');
+        
+        let selectedFile = null;
+        let chart = null;
+
+        const phaseColors = [
+            '#3b82f6', // Prep - Blue
+            '#10b981', // Calot - Green
+            '#f59e0b', // Clip - Orange
+            '#ef4444', // Dissect - Red
+            '#8b5cf6', // Pack - Purple
+            '#06b6d4', // Clean - Cyan
+            '#f43f5e'  // Retract - Rose
+        ];
+
+        // Setup File Drop
+        dropZone.addEventListener('click', () => videoInput.click());
+        
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+        
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+        
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+        
+        videoInput.addEventListener('change', (e) => {
+            if (e.target.files.length) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        function handleFile(file) {
+            selectedFile = file;
+            dropZone.querySelector('p.font-medium').textContent = file.name;
+            dropZone.querySelector('p.font-medium').classList.add('text-sky-300');
+            dropZone.classList.add('border-sky-500');
+        }
+
+        // Init Chart
+        function initChart() {
+            const ctx = document.getElementById('timelineChart').getContext('2d');
+            
+            if (chart) chart.destroy();
+            
+            chart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Confidence',
+                        data: [],
+                        backgroundColor: [],
+                        borderRadius: 4,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => `${ctx.raw.phase}: ${(ctx.raw.y * 100).toFixed(1)}%`
+                            }
+                        }
+                    },
+                    scales: {
+                        y: { 
+                            beginAtZero: true, 
+                            max: 1, 
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            ticks: { color: '#94a3b8' }
+                        },
+                        x: { 
+                            grid: { display: false },
+                            ticks: { color: '#94a3b8' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function formatTime(seconds) {
+            const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+            const s = Math.floor(seconds % 60).toString().padStart(2, '0');
+            return `${m}:${s}`;
+        }
+
+        // Analyze Action
+        analyzeBtn.addEventListener('click', async () => {
+            if (!selectedFile) {
+                alert('Please select a video file first.');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('video', selectedFile);
+
+            loadingOverlay.classList.remove('hidden');
+            analyzeBtn.disabled = true;
+            
+            try {
+                const response = await fetch('/api/analyze', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayResults(data);
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (err) {
+                console.error(err);
+                alert('An error occurred during analysis.');
+            } finally {
+                loadingOverlay.classList.add('hidden');
+                analyzeBtn.disabled = false;
+            }
+        });
+
+        function displayResults(data) {
+            statsPanel.classList.remove('hidden');
+            resultsStream.innerHTML = '';
+            
+            initChart();
+            const labels = [];
+            const plotData = [];
+            const bgColors = [];
+
+            // Display stream and update chart
+            data.results.forEach((res, idx) => {
+                // Time label
+                const timeStr = formatTime(res.timestamp);
+                labels.push(timeStr);
+                
+                plotData.push({
+                    x: timeStr,
+                    y: res.confidence,
+                    phase: res.phase
+                });
+                
+                bgColors.push(phaseColors[res.phase_id]);
+
+                // Stream Item
+                const toolsHtml = res.tools.length > 0 
+                    ? res.tools.map(t => `<span class="px-2 py-1 text-xs rounded bg-slate-700 text-slate-300 border border-slate-600">${t}</span>`).join('')
+                    : `<span class="text-slate-500 text-xs italic">No tools</span>`;
+
+                const itemHtml = `
+                    <div class="flex items-center p-3 bg-slate-800/50 rounded-lg phase-${res.phase_id} hover:bg-slate-700/50 transition-colors">
+                        <div class="w-24 shrink-0 relative rounded overflow-hidden mr-4 shadow-lg border border-slate-700">
+                            <img src="${res.frame}" class="w-full object-cover">
+                            <div class="absolute bottom-0 right-0 bg-black/70 text-white text-[10px] px-1">${timeStr}</div>
+                        </div>
+                        <div class="flex-1">
+                            <div class="flex justify-between items-start mb-1">
+                                <h4 class="font-semibold text-slate-200">${res.phase}</h4>
+                                <span class="text-xs font-mono text-sky-400">${(res.confidence * 100).toFixed(1)}%</span>
+                            </div>
+                            <div class="flex flex-wrap gap-1 mt-2">
+                                ${toolsHtml}
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                resultsStream.insertAdjacentHTML('beforeend', itemHtml);
+            });
+
+            // Update Chart
+            chart.data.labels = labels;
+            chart.data.datasets[0].data = plotData;
+            chart.data.datasets[0].backgroundColor = bgColors;
+            chart.update();
+
+            // Update Current Stats (last frame)
+            const lastRes = data.results[data.results.length - 1];
+            const cpEl = document.getElementById('currentPhase');
+            cpEl.textContent = lastRes.phase;
+            cpEl.style.color = phaseColors[lastRes.phase_id];
+
+            document.getElementById('currentTools').innerHTML = lastRes.tools.length > 0
+                ? lastRes.tools.map(t => `<span class="px-3 py-1 text-sm rounded-full bg-slate-700 text-sky-300 shadow-inner">${t}</span>`).join('')
+                : `<span class="text-slate-500 italic">None detected</span>`;
+
+            // Update Time Counter
+            document.getElementById('timeCounter').textContent = 
+                `${formatTime(data.video_info.duration)} / ${formatTime(data.video_info.duration)}`;
+        }
+        
+        initChart();
+    </script>
+</body>
+</html>
