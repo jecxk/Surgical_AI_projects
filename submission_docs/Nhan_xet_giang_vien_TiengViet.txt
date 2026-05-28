@@ -1,0 +1,16 @@
+NHẬN XÉT CỦA GIẢNG VIÊN HƯỚNG DẪN VỀ ĐÓNG GÓP KHOA HỌC CỦA BÁO CÁO
+(Phần này do giảng viên hướng dẫn ghi)
+
+Báo cáo trình bày một đề tài nghiên cứu rõ ràng và phù hợp trong lĩnh vực phân tích video phẫu thuật và học sâu. Sinh viên thể hiện sự hiểu biết tốt về bài toán khoa học, đặc biệt là khó khăn của nhận dạng giai đoạn phẫu thuật do mất cân bằng lớp, các giai đoạn có hình ảnh tương tự nhau, và yêu cầu mô hình hoá theo thời gian.
+
+Công trình cho thấy nỗ lực nghiêm túc trong việc xây dựng và so sánh các kiến trúc học sâu khác nhau, bao gồm mô hình hồi quy (recurrent), tích chập theo thời gian (temporal convolutional) và mô hình dựa trên Transformer. Ngoài bản thân việc so sánh, đề tài còn có giá trị ứng dụng rõ ràng: nhận dạng giai đoạn đáng tin cậy có thể hỗ trợ đào tạo và đánh giá kỹ năng phẫu thuật, tự động lập chỉ mục và truy xuất video ca mổ, phân tích chất lượng và quy trình sau mổ, và về lâu dài là hỗ trợ theo ngữ cảnh ngay trong phòng mổ. Thiết kế thí nghiệm phù hợp với một đề tài nghiên cứu sinh viên, với cách chia tập dữ liệu rõ ràng và các chỉ số đánh giá có ý nghĩa.
+
+Báo cáo cũng thể hiện tính trung thực khoa học khi chỉ ra những hạn chế trong cài đặt và tránh đưa ra các kết luận thiếu căn cứ. Kết quả khả quan và là một nền tảng hữu ích cho việc phát triển tiếp theo cũng như triển khai thực tế, đặc biệt ở các hướng cải thiện suy luận theo thời gian, hoàn thiện các thí nghiệm loại bỏ (ablation), và kiểm chứng phương pháp trên các tập dữ liệu phẫu thuật và bệnh viện khác trước khi ứng dụng lâm sàng.
+
+Nhìn chung, đây là một báo cáo được chuẩn bị tốt và vững về mặt kỹ thuật. Công trình thể hiện tính chủ động, sự cẩn thận trong cài đặt, và tiềm năng tốt để tiếp tục như một đề tài nghiên cứu khoa học sinh viên, với một lộ trình cụ thể hướng tới các công cụ phân tích quy trình phẫu thuật ứng dụng được trong thực tế.
+
+Hà Nội, ngày 28 tháng 5 năm 2026
+Giảng viên hướng dẫn
+(Ký và ghi rõ họ tên)
+
+Vũ Trọng Sinh
