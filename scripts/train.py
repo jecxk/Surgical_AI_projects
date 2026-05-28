@@ -161,10 +161,17 @@ def main():
     with open(output_dir / 'config.yaml', 'w') as f:
         yaml.dump(config, f, default_flow_style=False)
     
-    # Add file handler for logging
-    fh = logging.FileHandler(output_dir / 'training.log')
+    # Add file handler to ROOT logger so trainer.py (sibling logger) also writes here.
+    # Auto-flush each record so we can tail the file during training.
+    class _FlushFileHandler(logging.FileHandler):
+        def emit(self, record):
+            super().emit(record)
+            self.flush()
+
+    fh = _FlushFileHandler(output_dir / 'training.log')
     fh.setLevel(logging.INFO)
-    logger.addHandler(fh)
+    fh.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s'))
+    logging.getLogger().addHandler(fh)
     
     logger.info(f"Configuration: {json.dumps(config, indent=2, default=str)}")
     logger.info(f"Output directory: {output_dir}")
@@ -279,7 +286,7 @@ def main():
     )
     
     logger.info(f"All results saved to {output_dir}")
-    print(f"\n✅ Training complete! Results saved to: {output_dir}")
+    print(f"\n[DONE] Training complete! Results saved to: {output_dir}")
 
 
 if __name__ == '__main__':
