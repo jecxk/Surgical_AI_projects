@@ -1,0 +1,36 @@
+# ============================================
+# ABLATION 1: Single-task (Phase only)
+# Base: M1 (ResNet50 + LSTM)
+# Mục đích: chứng minh tool detection có giúp phase không
+# ETA: ~10h (shorter — 15 epochs)
+# ============================================
+
+project:
+  num_workers: 2
+
+data:
+  sequence_length: 8
+  stride: 4
+
+model:
+  backbone: "resnet50"
+  feature_dim: 2048
+  temporal_model: "lstm"
+  lstm: {hidden_dim: 512, num_layers: 2, bidirectional: true}
+  dropout: 0.3
+  multi_task: false       # <<< KEY DIFFERENCE
+  tool_detection: false
+  tool_loss_weight: 0.0
+
+training:
+  epochs: 15              # ngắn hơn cho ablation
+  batch_size: 4
+  use_amp: true
+  optimizer: {type: "adamw", lr: 1.0e-4, backbone_lr: 1.0e-5, weight_decay: 1.0e-4}
+  loss: {type: "cross_entropy", label_smoothing: 0.1, class_weights: "auto"}
+  staged_training: true
+  stage1_epochs: 3
+  stage2_epochs: 6
+  stage3_epochs: 6
+  save_every: 2
+  early_stopping: {patience: 4, metric: "val_f1", mode: "max"}
