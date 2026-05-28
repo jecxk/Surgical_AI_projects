@@ -113,39 +113,40 @@ class Cholec80Dataset(Dataset):
                             tools = [int(x) for x in parts[1:8]]
                             tool_annotations[frame_idx] = tools
             
-            # Collect frames at desired fps
+            # Collect frames — names like "frame_00000025.jpg" encode the
+            # original 25fps frame index. Files on disk are already sampled
+            # by prepare_data.py, so use all of them and parse the index
+            # from the filename rather than re-sampling here.
             frame_files = sorted(frames_dir.glob("frame_*.jpg"))
             if not frame_files:
-                frame_files = sorted(frames_dir.glob("*.png"))
-            if not frame_files:
-                frame_files = sorted(frames_dir.glob("*.jpg"))
-            
-            # Original video is 25fps, sample at self.fps
-            sample_interval = max(1, 25 // self.fps)
-            
-            for i, frame_path in enumerate(frame_files):
-                if i % sample_interval != 0:
+                frame_files = sorted(frames_dir.glob("*.png")) or sorted(frames_dir.glob("*.jpg"))
+
+            for frame_path in frame_files:
+                try:
+                    frame_idx = int(frame_path.stem.replace("frame_", ""))
+                except ValueError:
                     continue
-                
-                frame_idx = i * 25  # Convert to original frame index
-                
+
                 # Get phase label
                 phase = phase_annotations.get(frame_idx, -1)
                 if phase == -1:
-                    # Try nearest available annotation
-                    closest_key = min(phase_annotations.keys(), 
-                                   key=lambda x: abs(x - frame_idx),
-                                   default=None)
-                    if closest_key is not None:
-                        phase = phase_annotations[closest_key]
-                    else:
+                    closest_key = min(phase_annotations.keys(),
+                                      key=lambda x: abs(x - frame_idx),
+                                      default=None)
+                    if closest_key is None:
                         continue
-                
-                # Get tool labels
-                tools = [0] * NUM_TOOLS
-                if self.include_tools:
-                    tools = tool_annotations.get(frame_idx, [0] * NUM_TOOLS)
-                
+                    phase = phase_annotations[closest_key]
+
+                # Get tool labels (tool ann is at 1fps, fall back to nearest)
+                if self.include_tools and tool_annotations:
+                    tools = tool_annotations.get(frame_idx)
+                    if tools is None:
+                        closest_tool_key = min(tool_annotations.keys(),
+                                                key=lambda x: abs(x - frame_idx))
+                        tools = tool_annotations[closest_tool_key]
+                else:
+                    tools = [0] * NUM_TOOLS
+
                 self.frames.append({
                     'path': str(frame_path),
                     'phase': phase,
