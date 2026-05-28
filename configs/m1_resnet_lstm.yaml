@@ -1,0 +1,52 @@
+# ============================================
+# M1 — BASELINE: ResNet50 + LSTM
+# RTX 2050 4GB optimized
+# ETA: ~20h
+# ============================================
+
+project:
+  num_workers: 2
+
+data:
+  sequence_length: 8
+  stride: 4
+
+model:
+  backbone: "resnet50"
+  feature_dim: 2048
+  temporal_model: "lstm"
+  lstm:
+    hidden_dim: 512
+    num_layers: 2
+    bidirectional: true
+  dropout: 0.3
+  multi_task: true
+  tool_detection: true
+  tool_loss_weight: 0.5
+
+training:
+  epochs: 25
+  batch_size: 4              # ResNet50 nặng VRAM
+  use_amp: true
+
+  optimizer:
+    type: "adamw"
+    lr: 1.0e-4
+    backbone_lr: 1.0e-5
+    weight_decay: 1.0e-4
+
+  loss:
+    type: "cross_entropy"
+    label_smoothing: 0.1
+    class_weights: "auto"    # critical for imbalance 11.2x
+
+  staged_training: true
+  stage1_epochs: 5
+  stage2_epochs: 10
+  stage3_epochs: 10
+
+  save_every: 2
+  early_stopping:
+    patience: 5
+    metric: "val_f1"
+    mode: "max"
