@@ -1,0 +1,52 @@
+# ============================================
+# M2 — EFFICIENT: EfficientNet-B3 + TCN
+# Inspired by TeCNO (convolutional temporal)
+# ETA: ~15h
+# ============================================
+
+project:
+  num_workers: 2
+
+data:
+  sequence_length: 8
+  stride: 4
+
+model:
+  backbone: "efficientnet_b3"
+  feature_dim: 1536
+  temporal_model: "tcn"
+  tcn:
+    num_stages: 2            # giảm từ 3 cho RTX 2050
+    num_layers_per_stage: 8  # giảm từ 10
+    num_filters: 64
+  dropout: 0.3
+  multi_task: true
+  tool_detection: true
+  tool_loss_weight: 0.5
+
+training:
+  epochs: 25
+  batch_size: 4              # Was 8 — halved to give stage 3 (unfrozen backbone) VRAM headroom on RTX 2050 4GB
+  use_amp: true
+
+  optimizer:
+    type: "adamw"
+    lr: 1.0e-4
+    backbone_lr: 1.0e-5
+    weight_decay: 1.0e-4
+
+  loss:
+    type: "cross_entropy"
+    label_smoothing: 0.1
+    class_weights: "auto"
+
+  staged_training: true
+  stage1_epochs: 0        # already done in prior run, skip
+  stage2_epochs: 0        # already done in prior run, skip
+  stage3_epochs: 10       # resume from best_model.pth (end of stage 3 epoch 13), train 10 more stage-3 epochs
+
+  save_every: 2
+  early_stopping:
+    patience: 5
+    metric: "val_f1"
+    mode: "max"
