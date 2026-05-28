@@ -1,0 +1,54 @@
+# ============================================
+# M3 — MODERN: Swin-Tiny + Transformer
+# Inspired by Trans-SVNet (transformer all the way)
+# ETA: ~25h
+# ============================================
+
+project:
+  num_workers: 2
+
+data:
+  sequence_length: 8
+  stride: 4
+
+model:
+  backbone: "swin_tiny"
+  feature_dim: 768
+  temporal_model: "transformer"
+  transformer:
+    d_model: 384            # giảm từ 512 cho VRAM
+    num_heads: 6
+    num_layers: 3           # giảm từ 4
+    dim_feedforward: 768    # giảm từ 1024
+    max_seq_length: 512
+  dropout: 0.3
+  multi_task: true
+  tool_detection: true
+  tool_loss_weight: 0.5
+
+training:
+  epochs: 25
+  batch_size: 4
+  use_amp: true
+
+  optimizer:
+    type: "adamw"
+    lr: 1.0e-4
+    backbone_lr: 1.0e-5
+    weight_decay: 1.0e-4
+
+  loss:
+    type: "cross_entropy"
+    label_smoothing: 0.1
+    class_weights: "auto"
+
+  staged_training: true
+  stage1_epochs: 5
+  stage2_epochs: 10
+  stage3_epochs: 10
+
+  save_every: 2
+  early_stopping:
+    patience: 5
+    metric: "val_f1"
+    mode: "max"
