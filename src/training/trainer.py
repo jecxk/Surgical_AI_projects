@@ -259,7 +259,10 @@ class Trainer:
     def _train_stage(self, num_epochs: int, stage_name: str):
         """Train for a specific stage."""
         patience = self.config.get('early_stopping', {}).get('patience', 10)
-        
+        # Reset patience counter at start of each stage so unfreezing gets a fair chance.
+        self.patience_counter = 0
+        logger.info(f"[{stage_name}] starting: num_epochs={num_epochs}, early_stopping_patience={patience}")
+
         for epoch in range(num_epochs):
             self.current_epoch += 1
             start_time = time.time()
@@ -295,7 +298,7 @@ class Trainer:
                 self.writer.add_scalar(f'val/{k}', v, self.current_epoch)
             self.writer.add_scalar('lr', lr, self.current_epoch)
             
-            # Save history
+            # Save history (incremental flush so external tools can monitor live)
             self.training_history.append({
                 'epoch': self.current_epoch,
                 'stage': stage_name,
@@ -303,7 +306,8 @@ class Trainer:
                 'val': val_metrics,
                 'lr': lr,
             })
-            
+            self._save_history()
+
             # Check for best model
             current_metric = val_metrics.get('macro_f1', val_metrics['accuracy'])
             if current_metric > self.best_metric:
