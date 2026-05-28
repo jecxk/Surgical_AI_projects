@@ -1,0 +1,37 @@
+# ============================================
+# Config riêng cho RTX 2050 4GB VRAM
+# Override default.yaml — nhỏ gọn hơn để tránh OOM + chạy nhanh hơn
+# ============================================
+
+project:
+  num_workers: 2          # Win10/11 OK với 2
+
+data:
+  sequence_length: 8      # giảm từ 16 → giảm VRAM ~50%
+  stride: 4               # nhỏ hơn → nhiều sequence hơn, train signal tốt
+
+model:
+  backbone: "efficientnet_b0"   # 5M params (vs ResNet50 25M)
+  feature_dim: 1280              # khớp efficientnet_b0
+  temporal_model: "lstm"
+  lstm:
+    hidden_dim: 256              # giảm từ 512
+    num_layers: 1                # giảm từ 2
+    bidirectional: true
+
+training:
+  epochs: 25               # đủ để early stop kick in, ~30-40h
+  batch_size: 8            # với seq_len=8 và backbone nhỏ, batch=8 OK
+  use_amp: true            # bắt buộc
+
+  staged_training: true
+  stage1_epochs: 5
+  stage2_epochs: 10
+  stage3_epochs: 10
+
+  save_every: 2            # checkpoint thường xuyên — phòng crash
+
+  early_stopping:
+    patience: 5            # dừng sớm nếu val không cải thiện
+    metric: "val_f1"
+    mode: "max"
