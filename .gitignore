@@ -1,5 +1,43 @@
+# --- Trained artifacts (too large for GitHub) ---
 results/
+*.pth
+*.pt
+*.ckpt
+
+# --- Dataset (videos + extracted frames, tens of GB) ---
+data/
+*.mp4
+*.avi
+*.mkv
+*.mov
+*.jpg
+*.jpeg
+*.png
+
+# --- Runtime / uploads ---
+uploads/
+web_demo/uploads/
+*.log
+web_demo/server.out.log
+web_demo/server.err.log
+
+# --- Agent / editor / OS ---
+.claude/
+.vscode/
+.idea/
+.DS_Store
+
+# --- Python ---
 __pycache__/
 *.pyc
-.DS_Store
-uploads/
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# --- Generated docs / large binaries ---
+*.pdf
+
+# --- Temp ---
+tmp/
+*.part
