@@ -1,0 +1,44 @@
+% ======================= CHAPTER 5: CONCLUSION ==========================
+\chapter{Conclusion and Future Work}
+
+\section{Summary of Contributions}
+
+This thesis studied surgical phase recognition on Cholec80 on a single laptop GPU, around two connected parts.
+
+The first is a \textbf{fair comparison of three architectures}. ResNet-50~+~BiLSTM, EfficientNet-B3~+~TCN, and Swin-Tiny~+~Transformer were trained with one identical pipeline (a three-stage schedule, class re-weighting, the extra tool task, label smoothing, and mixed-precision training) on a single 4~GB GPU. Keeping the recipe fixed isolates the effect of the architecture: the Swin-Transformer reached a smoothed macro-F1 of 0.815, 3.4 points above the ResNet-LSTM and 6.7 above the EfficientNet-TCN. Four ablations then showed the tool task is worth about $+1.6\%$ macro-F1 and class re-weighting about $+2.0\%$, and combining the three models added another 1.0 point.
+
+The second part is about the \textbf{decoding and calibration steps} that most Cholec80 work skips. A real-time decoder, combining temperature-calibrated predictions with a learned transition table, was added. Without retraining the models, it raised test accuracy by $+0.6$ to $+1.7$ points across the three models---a small but, by the paired test, clear and consistent gain---at a cost of 0.013~ms per frame. Splitting the errors showed the decoder is strongest exactly where the models are weakest (at phase changes), and that the remaining gap to the offline upper bound is entirely inside the phases.
+
+\section{Key Findings}
+
+Three findings go beyond the specific dataset and models studied.
+
+\textbf{The training recipe matters as much as the architecture.} Class weighting and the tool task together are worth almost four points of macro-F1---about the same as the gap between the best and worst architecture. On an imbalanced surgical dataset, how the model is trained is as important as which backbone is used. This is easy to miss when a comparison changes the architecture and the recipe at the same time, which is exactly what the fixed pipeline here was meant to avoid.
+
+\textbf{Calibration is what makes the transition table useful.} Temperature scaling is usually justified by trust alone, but it has a second role here: the decoder adds the calibrated scores and the transition weights together, so if the scores are too sharp the table is ignored. Calibrating the scores is what lets the learned phase order help, which is why the calibrated decoder consistently beats the uncalibrated one.
+
+\textbf{The benefit of looking ahead is inside the phases.} The offline decoder's advantage over the best real-time decoder is almost entirely about fixing brief mistakes inside long, stable phases using future frames---not about placing the phase changes more precisely. So a real-time system gives up the ability to fix those interior glitches, not boundary accuracy. Letting the decoder look a few seconds ahead is therefore the natural next step.
+
+\section{Limitations}
+
+Several constraints bound the conclusions of this study:
+
+\begin{itemize}
+    \item \textbf{Limited hardware.} The 4~GB GPU forced a small batch size and sequence length. Results on larger hardware would likely be one to three points higher, and the EfficientNet-TCN in particular had its Stage-3 fine-tuning cut short, so its numbers are a lower bound rather than a fair estimate.
+    \item \textbf{One dataset.} All results are from Cholec80. Procedures with a less strict phase order may need a looser transition table, and transfer to other surgeries is untested.
+    \item \textbf{Label noise at phase changes.} The exact moment of each phase change in Cholec80 is imprecise, which caps the achievable accuracy near phase changes; this cap is not measured here.
+    \item \textbf{Sub-sampling in the live demo.} The interactive demo skips frames for speed, so short closing phases can be missed at low sampling rates. The reported benchmark numbers use the full 1~fps protocol and are not affected.
+\end{itemize}
+
+\section{Future Work}
+
+The most direct extensions address these limitations:
+
+\begin{itemize}
+    \item \textbf{A short look-ahead.} A decoder allowed to look a few seconds ahead would recover most of the gap inside phases while keeping the delay small, addressing the bottleneck found in Section~\ref{sec:boundary}.
+    \item \textbf{Re-training on larger hardware.} Running the same three architectures with a larger batch and longer sequences would show how much of the gap to the best published results is due to hardware rather than the architecture.
+    \item \textbf{Uncertainty estimates.} Adding Monte-Carlo dropout or ensemble-based uncertainty, on top of the calibration already done, would give each prediction a confidence value that a clinician could use.
+    \item \textbf{Other procedures.} Re-training on other surgeries with workflow labels would test whether the pipeline and the learned-table decoder work beyond cholecystectomy.
+\end{itemize}
+
+In summary, this thesis shows that good surgical phase recognition is possible on an ordinary laptop GPU when training, decoding, and post-processing are designed together---and that the decoding and calibration steps, often treated as an afterthought, give a real, measurable, real-time improvement.

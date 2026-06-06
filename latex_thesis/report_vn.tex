@@ -1,0 +1,195 @@
+\documentclass[11pt,a4paper]{report}
+\usepackage[a4paper,top=2.5cm,bottom=2.5cm,left=2.5cm,right=2.5cm]{geometry}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{tikz}
+\usetikzlibrary{calc}
+\usepackage{setspace}
+\usepackage[nottoc]{tocbibind}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fontspec}
+\usepackage{polyglossia}
+\setdefaultlanguage{vietnamese}
+\setmainfont{Times New Roman}
+
+\setstretch{1.15}
+\setlength{\parskip}{6pt}
+\setlength{\parindent}{0pt}
+\newcommand{\figwidth}{0.85\textwidth}
+
+\begin{document}
+
+% ======================= TRANG BÌA ==========================
+\begin{titlepage}
+\thispagestyle{empty}
+\centering
+\begin{tikzpicture}[remember picture, overlay]
+  \draw[line width=0.8pt]
+    ($(current page.north west) + (2cm,-2cm)$)
+    rectangle
+    ($(current page.south east) + (-2cm,2cm)$);
+\end{tikzpicture}
+
+{\bfseries\large ĐẠI HỌC KHOA HỌC VÀ CÔNG NGHỆ HÀ NỘI\par}
+\vspace{4pt}
+{\bfseries\large KHOA CÔNG NGHỆ THÔNG TIN VÀ TRUYỀN THÔNG\par}
+
+\vspace{2.4cm}
+\IfFileExists{figures/logo.png}{
+  \includegraphics[width=6cm]{figures/logo.png}\par
+}{
+  \vspace*{3.5cm}
+}
+\vspace{1.8cm}
+
+{\bfseries\Large BÁO CÁO KHÓA LUẬN TỐT NGHIỆP\par}
+\vspace{10pt}
+{\bfseries\Large Nhận dạng Tự động các Pha Phẫu thuật trong Video Cắt Túi mật: So sánh Ba Kiến trúc Học sâu Hiện đại trên Tập dữ liệu Cholec80\par}
+
+\vspace{2.0cm}
+\begin{tabular}{@{}rl@{}}
+\textbf{Sinh viên thực hiện:} & Nguyễn Trọng Bách\\[10pt]
+\textbf{Giảng viên hướng dẫn:} & TS. Vũ Trọng Sinh\\
+\end{tabular}
+
+\vfill
+{\large Tháng 6 năm 2026\par}
+\end{titlepage}
+
+% ======================= LỜI CẢM ƠN ==========================
+\chapter*{Lời cảm ơn}
+\addcontentsline{toc}{chapter}{Lời cảm ơn}
+
+Trước hết, tôi xin bày tỏ lòng biết ơn chân thành đến giảng viên hướng dẫn của tôi, TS.~Vũ Trọng Sinh, vì những chỉ dẫn quý báu, sự hỗ trợ liên tục và kiến thức sâu rộng của thầy về hình ảnh y khoa. Những hiểu biết thực tiễn và phản hồi mang tính xây dựng của thầy đã định hướng cho công trình này và nâng cao đáng kể chất lượng của nó.
+
+Tôi xin cảm ơn nhóm nghiên cứu CAMMA tại Đại học Strasbourg đã công bố tập dữ liệu Cholec80, nếu không có nó thì nghiên cứu này không thể thực hiện được, cùng cộng đồng mã nguồn mở đứng sau PyTorch, timm và scikit-learn --- những công cụ làm nền tảng cho mọi thí nghiệm được trình bày ở đây.
+
+Cuối cùng, tôi muốn cảm ơn gia đình vì tình yêu vô điều kiện và niềm tin không lay chuyển dành cho tôi trong suốt những đêm dài huấn luyện và gỡ lỗi. Tôi xin dành cột mốc này cho họ.
+
+% ======================= TÓM TẮT ==========================
+\chapter*{Tóm tắt}
+\addcontentsline{toc}{chapter}{Tóm tắt}
+
+Nhận dạng pha phẫu thuật là việc gán cho mỗi khung hình của video ca mổ một nhãn ứng với bước phẫu thuật đang diễn ra. Đây là một thành phần nền tảng hữu ích cho phân tích phòng mổ, đánh giá kỹ năng và hỗ trợ ra quyết định. Tập dữ liệu Cholec80 gồm tám mươi video cắt túi mật, chia mỗi ca mổ thành bảy pha. Các pha có sự phân bố rất không đều --- pha phổ biến nhất chiếm 42,7\% số khung hình trong khi pha hiếm nhất chỉ chiếm 3,8\%, một tỷ lệ khoảng 11 trên 1 --- và nhiều khung hình gần thời điểm chuyển pha trông rất giống nhau, khiến bài toán trở nên khó.
+
+Khóa luận này có hai phần. Phần thứ nhất là một \textbf{so sánh công bằng giữa ba kiến trúc}: ResNet-50 với một mạng LSTM hai chiều, EfficientNet-B3 với một mạng tích chập theo thời gian (TCN), và Swin-Tiny với một Transformer. Cả ba được huấn luyện bằng đúng cùng một pipeline --- lịch trình ba giai đoạn, tự động tái cân bằng trọng số lớp, một nhiệm vụ phụ phát hiện dụng cụ, làm mượt nhãn, và huấn luyện độ chính xác hỗn hợp --- sao cho mọi khác biệt trong kết quả đến từ kiến trúc chứ không phải từ cách thiết lập huấn luyện. Trên tập kiểm tra giữ riêng gồm hai mươi video, Swin-Transformer đạt Macro-F1 đã làm mượt là \textbf{0,815} (độ chính xác 0,862), cao hơn ResNet-LSTM 3,4 điểm và cao hơn EfficientNet-TCN 6,7 điểm; việc kết hợp ba mô hình mang lại thêm một mức tăng nhỏ. Bốn nghiên cứu loại bỏ cho thấy nhiệm vụ dụng cụ phụ đáng giá khoảng $+1{,}6\%$ Macro-F1 và việc tái cân bằng lớp khoảng $+2{,}0\%$ --- cộng lại lớn ngang khoảng cách giữa kiến trúc tốt nhất và kém nhất.
+
+Phần thứ hai xem xét \textbf{bước giải mã và hiệu chuẩn} mà phần lớn các công trình trên Cholec80 bỏ qua. Chúng tôi thêm vào một bộ giải mã thời gian thực chỉ dùng các khung hình trong quá khứ: nó kết hợp các dự đoán đã hiệu chuẩn nhiệt độ với một bảng chuyển pha học được từ các video huấn luyện. Không cần huấn luyện lại các mô hình, nó nâng độ chính xác trên tập kiểm tra thêm $+0{,}6$ đến $+1{,}7$ điểm (kiểm định Wilcoxon ghép cặp $p < 0{,}001$, hệ số Cohen $d > 0{,}97$) với chi phí 0,013~ms mỗi khung hình, và mức tăng lớn nhất tập trung ở gần các điểm chuyển pha. So sánh với một bộ giải mã ngoại tuyến được phép nhìn toàn bộ video cho thấy phần khoảng cách còn lại nằm gần như hoàn toàn bên trong các pha dài ổn định, chứ không phải ở chính các điểm chuyển pha.
+
+Nhìn chung, khóa luận cho thấy có thể nhận dạng pha phẫu thuật tốt trên một GPU laptop thông thường khi huấn luyện, giải mã và hậu xử lý được thiết kế cùng nhau, và rằng trên một tập dữ liệu mất cân bằng thì công thức huấn luyện quan trọng ngang với việc chọn kiến trúc.
+
+\tableofcontents
+\listoffigures
+\listoftables
+
+% ======================= DANH MỤC TỪ VIẾT TẮT ==========================
+\chapter*{Danh mục Từ viết tắt}
+\addcontentsline{toc}{chapter}{Danh mục Từ viết tắt}
+
+\begin{tabbing}
+\hspace*{3cm}\=\kill
+\textbf{AdamW} \> Adam with decoupled Weight decay (Adam với suy giảm trọng số tách rời)\\
+\textbf{AUC} \> Area Under the ROC Curve (Diện tích dưới đường cong ROC)\\
+\textbf{BiLSTM} \> Bidirectional Long Short-Term Memory (Bộ nhớ dài-ngắn hạn hai chiều)\\
+\textbf{CNN} \> Convolutional Neural Network (Mạng nơ-ron tích chập)\\
+\textbf{ECE} \> Expected Calibration Error (Sai số hiệu chuẩn kỳ vọng)\\
+\textbf{fps} \> Frames Per Second (Số khung hình mỗi giây)\\
+\textbf{HMM} \> Hidden Markov Model (Mô hình Markov ẩn)\\
+\textbf{LSTM} \> Long Short-Term Memory (Bộ nhớ dài-ngắn hạn)\\
+\textbf{MICCAI} \> Medical Image Computing and Computer Assisted Intervention\\
+\textbf{NLL} \> Negative Log-Likelihood (Hàm log hợp lý âm)\\
+\textbf{TCN} \> Temporal Convolutional Network (Mạng tích chập theo thời gian)\\
+\textbf{ViT} \> Vision Transformer (Transformer thị giác)\\
+\end{tabbing}
+
+% ======================= CHƯƠNG 1 ==========================
+\chapter{Giới thiệu}
+
+\section{Bối cảnh và Động lực}
+
+Phẫu thuật nội soi tạo ra một lượng lớn video được ghi lại nhưng hiếm khi được xem lại. Một ca cắt túi mật nội soi --- phẫu thuật lấy bỏ túi mật --- thường kéo dài từ ba mươi đến chín mươi phút và tuân theo một chuỗi các bước cố định. Một hệ thống nhận dạng các bước này một cách tự động sẽ hữu ích theo nhiều cách: viết báo cáo ca mổ, đánh giá kỹ năng của học viên, ước lượng còn bao lâu nữa thì ca mổ kết thúc, và cảnh báo cho ê-kíp khi quy trình đi chệch khỏi trình tự mong đợi.
+
+Tập dữ liệu Cholec80, do nhóm CAMMA tại Đại học Strasbourg công bố năm 2017, là tập dữ liệu chuẩn cho bài toán này. Nó chứa tám mươi video cắt túi mật được ghi ở 25 khung hình mỗi giây. Mỗi khung hình được gán nhãn với một trong bảy pha phẫu thuật và với việc dụng cụ nào trong số bảy dụng cụ đang xuất hiện. Bảy pha --- Chuẩn bị, Bóc tách tam giác Calot, Kẹp và cắt, Bóc tách túi mật, Đóng gói túi mật, Làm sạch và đông máu, và Lấy túi mật ra --- luôn diễn ra theo cùng một trình tự, một tính chất mà khóa luận này sẽ tận dụng ở bước giải mã sau này.
+
+Học sâu là phương pháp tiêu chuẩn. Các hệ thống ban đầu dùng một mạng tích chập để gán nhãn cho từng khung hình một cách riêng lẻ; các công trình về sau thêm vào một mô hình theo thời gian --- dạng hồi tiếp, tích chập, hoặc dựa trên cơ chế chú ý --- được huấn luyện cùng với bộ mã hóa ảnh. Tuy nhiên, khó khăn chính không nằm ở mô hình mà ở dữ liệu: Cholec80 bị chi phối bởi một số ít pha dài, nên một mô hình được huấn luyện không có sự điều chỉnh sẽ học cách dự đoán những pha đó cho gần như mọi thứ. Điều này tạo ra độ chính xác cao ở mức khung hình nhưng gần như bỏ qua các pha kết thúc ngắn vốn quan trọng về mặt lâm sàng.
+
+\section{Phát biểu Bài toán}
+
+Nhận dạng pha phẫu thuật trên Cholec80 bị chi phối bởi ba khó khăn mà khóa luận này giải quyết trực tiếp.
+
+\textbf{Mất cân bằng lớp.} Riêng pha Bóc tách tam giác Calot đã chiếm 42,7\% số khung hình, trong khi pha Lấy túi mật ra chỉ chiếm 3,8\% --- một tỷ lệ trên mười một so với một. Một mô hình huấn luyện không có sự điều chỉnh sẽ học cách dự đoán các pha phổ biến, và độ chính xác ở mức khung hình che giấu điều này vì các pha phổ biến cũng chính là các pha dễ.
+
+\textbf{So sánh trộn lẫn quá nhiều yếu tố.} Ba họ phương pháp --- CNN~+~LSTM, CNN~+~TCN, và CNN~+~Transformer --- mỗi họ từng là tốt nhất ở thời của nó, nhưng các so sánh đã công bố lại khác nhau ở cách chia dữ liệu, hàm mất mát, kích thước lô, độ dài chuỗi và cách hậu xử lý. Vì vậy rất khó nói mỗi mức cải thiện được báo cáo có bao nhiêu phần đến từ kiến trúc mới và bao nhiêu phần đến từ phần còn lại của cách thiết lập huấn luyện.
+
+\textbf{Việc giải mã thường bị bỏ qua.} Phần lớn các kết quả giả định rằng toàn bộ video đã có sẵn trước khi đưa ra bất kỳ nhãn nào. Tuy nhiên, việc sử dụng trong lúc mổ đòi hỏi giải mã chỉ dùng các khung hình trong quá khứ --- tại thời điểm $t$, hệ thống chỉ được nhìn các khung hình cho đến $t$. Cách biến các dự đoán theo từng khung hình thành một chuỗi pha sạch sẽ, và việc liệu các độ tin cậy được báo cáo có đáng tin hay không, đều ít được quan tâm hơn nhiều so với việc chọn mạng nền (backbone).
+
+\section{Mục tiêu}
+
+Để giải quyết các thách thức trên, khóa luận này theo đuổi các mục tiêu sau:
+\begin{enumerate}
+    \item \textbf{So sánh ba kiến trúc một cách công bằng.} Huấn luyện ba họ đại diện (ResNet-50~+~BiLSTM, EfficientNet-B3~+~TCN, Swin-Tiny~+~Transformer) bằng một pipeline duy nhất giống hệt nhau, sao cho mọi khác biệt trong kết quả phản ánh riêng kiến trúc.
+    \item \textbf{Đo lường công thức huấn luyện.} Dùng bốn nghiên cứu loại bỏ để tìm ra mỗi yếu tố --- nhiệm vụ dụng cụ phụ, tái cân bằng lớp, độ dài chuỗi và làm mượt theo thời gian --- đóng góp bao nhiêu.
+    \item \textbf{Thử kết hợp các mô hình.} Kiểm tra xem việc trung bình ba mô hình có cho kết quả tốt hơn mô hình đơn tốt nhất hay không.
+    \item \textbf{Xây dựng một bộ giải mã thời gian thực.} Thêm một bộ giải mã chỉ dùng các khung hình quá khứ và một bảng chuyển pha học từ tập huấn luyện, rồi so sánh nó với dự đoán thô, làm mượt trung vị, và một bộ giải mã ngoại tuyến được phép nhìn toàn bộ video.
+    \item \textbf{Kiểm tra việc hiệu chuẩn.} Báo cáo mức độ khớp giữa độ tin cậy dự đoán và độ chính xác thực tế, trước và sau khi co giãn nhiệt độ (temperature scaling), và chia lỗi thành các khung hình gần điểm chuyển pha và các khung hình bên trong pha.
+\end{enumerate}
+
+\section{Cấu trúc Khóa luận}
+
+Phần còn lại của báo cáo được tổ chức như sau:
+\begin{itemize}
+    \item \textbf{Chương 2 -- Tổng quan Tài liệu:} Điểm lại các công trình liên quan về học sâu cho nhận dạng pha phẫu thuật, các kiến trúc theo thời gian, mất cân bằng lớp, giải mã và hiệu chuẩn.
+    \item \textbf{Chương 3 -- Phương pháp:} Trình bày tập dữ liệu, ba kiến trúc, pipeline huấn luyện chung, các chỉ số đánh giá và bộ giải mã được đề xuất.
+    \item \textbf{Chương 4 -- Thí nghiệm và Kết quả:} Phân tích so sánh, nghiên cứu loại bỏ, kết quả kết hợp mô hình, đánh giá bộ giải mã và phân tích lỗi gần/trong pha.
+    \item \textbf{Chương 5 -- Kết luận và Hướng Phát triển:} Tóm tắt đóng góp, rút ra các phát hiện chính, nêu hạn chế và đề xuất hướng đi tiếp theo.
+\end{itemize}
+
+
+% ======================= CHƯƠNG 2 ==========================
+\chapter{Tổng quan Tài liệu}
+
+\section{Nhận dạng Pha Phẫu thuật bằng Học sâu}
+
+Việc nhận dạng tự động quy trình phẫu thuật từ video trên Cholec80 bắt đầu với \textbf{EndoNet}, mô hình dùng một mạng tích chập đơn kèm một nhiệm vụ phát hiện dụng cụ phụ, rồi làm sạch các dự đoán theo từng khung hình bằng một Mô hình Markov ẩn. EndoNet đưa ra hai ý tưởng mà lĩnh vực này vẫn còn dùng: thêm một nhiệm vụ phát hiện dụng cụ giúp ích cho dự đoán pha, và cần một dạng làm mượt theo thời gian nào đó vì các dự đoán theo từng khung hình rất nhiễu. Độ chính xác của nó gần 89\% với F1 trung bình khoảng 0,79.
+
+Vì một ca cắt túi mật kéo dài hàng chục phút, câu hỏi chính là làm sao tận dụng ngữ cảnh theo thời gian. Tài liệu đã trả lời câu hỏi này theo ba cách, mỗi cách tương ứng với một trong ba kiến trúc được so sánh trong khóa luận này.
+
+\section{Sự Tiến hóa của các Kiến trúc Theo thời gian}
+
+\textbf{Mô hình hồi tiếp.} SV-RCNet kết hợp một mạng nền ResNet-50 với một LSTM được huấn luyện đầu-cuối, cho dự đoán mượt hơn EndoNet và độ chính xác trung bình khoảng 85\%. LSTM mang thông tin tiến về phía trước theo thời gian, nhưng phải được xử lý tuần tự từng bước và gặp khó khi phải giữ ngữ cảnh rất dài --- một vấn đề khi các pha kéo dài vài phút.
+
+\textbf{Mô hình theo thời gian dạng tích chập.} TeCNO thay LSTM bằng một mạng tích chập theo thời gian nhiều giai đoạn đặt trên các đặc trưng theo từng khung hình. Các tích chập giãn nở (dilated) bao phủ một cửa sổ thời gian rộng với chi phí thấp, và các giai đoạn dần dần làm sạch các dự đoán. TeCNO đạt độ chính xác (precision) trung bình gần 86\% và cho thấy mô hình theo thời gian dạng tích chập có thể sánh ngang với mô hình hồi tiếp.
+
+\textbf{Mô hình dựa trên cơ chế chú ý.} Trans-SVNet đặt một Transformer lên trên các đặc trưng theo từng khung hình, cho phép mỗi khung hình "chú ý" đến mọi khung hình khác bất kể khoảng cách, và đạt khoảng 88\% độ chính xác cùng 0,85 Macro-F1. \textbf{Swin Transformer} làm cho cơ chế chú ý trở nên khả thi trên ảnh bằng cách tính nó trong các cửa sổ cục bộ có dịch chuyển; đây là mạng nền được dùng cho mô hình Transformer trong công trình này.
+
+Một bài học lặp đi lặp lại là cách thiết lập huấn luyện có thể quan trọng hơn kiến trúc. ConvNeXt cho thấy một mạng ResNet hiện đại hóa, khi được huấn luyện bằng các công thức dùng cho Transformer, sánh ngang với Swin. Đây chính là lý do một so sánh công bằng phải giữ cố định pipeline huấn luyện, như khóa luận này làm.
+
+\section{Xử lý Mất cân bằng Lớp trong các Tập dữ liệu Phẫu thuật}
+
+Với mức mất cân bằng 11:1, Cholec80 cần một dạng điều chỉnh nào đó. Buda và cộng sự nhận thấy rằng cân bằng các lô nhỏ (mini-batch), thông qua lấy mẫu vượt mức hoặc lấy mẫu có trọng số, hoạt động tốt hơn so với việc đánh lại trọng số hàm mất mát hay lấy mẫu dưới mức. Việc đánh trọng số hàm mất mát theo nghịch đảo tần suất lớp là một lựa chọn liên quan, và làm mượt nhãn (label smoothing) làm mềm các nhãn one-hot để mô hình không bao giờ gán xác suất 1,0 cho một lớp, qua đó cải thiện việc hiệu chuẩn và, trên các tập dữ liệu mơ hồ, cả Macro-F1. Khóa luận này kết hợp đánh trọng số lớp theo nghịch đảo tần suất, làm mượt nhãn, và nhiệm vụ dụng cụ phụ; nghiên cứu loại bỏ ở Chương 4 đo lường mức đóng góp của từng yếu tố.
+
+\section{Giải mã và Hậu xử lý Theo thời gian}
+
+Có hai ý tưởng xuất hiện lặp đi lặp lại. Ý tưởng thứ nhất là \emph{làm mượt theo thời gian} --- các bộ lọc trung vị loại bỏ những lần đổi nhãn đơn lẻ; chúng giúp ích đôi chút nhưng khi dùng một cửa sổ đối xứng thì chúng nhìn cả các khung hình tương lai và do đó không hoàn toàn nhân quả (causal). Ý tưởng thứ hai là \emph{trình tự pha cố định}: các pha cắt túi mật không bao giờ đi lùi, điều mà một lượt giải mã ngoại tuyến trên toàn bộ video có thể áp đặt với hiệu quả lớn. Tuy nhiên, bộ giải mã ngoại tuyến đó cần toàn bộ video, nên nó là một cận trên (upper bound) chứ không phải thứ dùng được trong lúc mổ. Khóa luận này xây dựng một bộ giải mã \textbf{nhân quả} chỉ dùng các khung hình quá khứ và một bảng chuyển pha \emph{học được} từ tập huấn luyện, rồi so sánh nó với các phương pháp đối chứng trên, kèm theo việc tách riêng xem mức tăng đến từ đâu (gần điểm chuyển pha hay bên trong pha) --- một so sánh chưa từng được báo cáo trên Cholec80.
+
+\section{Hiệu chuẩn Độ tin cậy trong AI Y tế}
+
+Một mô hình tự tin 99\% nhưng chỉ chính xác 80\% là vấn đề trong môi trường lâm sàng, nơi bác sĩ hoặc một hệ thống khác có thể hành động dựa trên độ tin cậy được báo cáo. Các bộ phân loại học sâu hiện đại thường quá tự tin, và co giãn nhiệt độ là một cách khắc phục đơn giản giữ nguyên độ chính xác nhưng làm cho độ tin cậy trung thực hơn, hạ thấp Sai số hiệu chuẩn kỳ vọng (ECE). Hiệu chuẩn được nghiên cứu kỹ trên các tập ảnh thông thường, nhưng theo hiểu biết của chúng tôi, chưa được báo cáo cho nhận dạng pha phẫu thuật. Vì vậy khóa luận này báo cáo ECE, NLL và nhiệt độ ước lượng được cho cả ba kiến trúc, và cho thấy chính các dự đoán đã được hiệu chuẩn là thứ cho phép bảng chuyển pha phát huy tác dụng bên trong bộ giải mã.
+
+\section{Định vị Công trình này}
+
+Các hệ thống Cholec80 đã công bố đạt điểm F1 trung bình trong khoảng từ 0,79 (EndoNet) đến 0,85 (Trans-SVNet), thường dùng các GPU cỡ trung tâm dữ liệu, lô lớn và chuỗi dài. Công trình này chấp nhận một sự đánh đổi khác: ba kiến trúc, một tập huấn luyện cố định, một GPU laptop 4~GB duy nhất, và một pipeline giống hệt nhau --- nhưng vẫn đạt 0,815 Macro-F1 đã làm mượt với mô hình Transformer, ngang với các công trình dựa trên TCN. Điểm mấu chốt không phải là một con số kỷ lục mới. Nó là (i)~một sự tách bạch rõ ràng giữa phần hiệu năng đến từ kiến trúc và phần đến từ công thức huấn luyện, và (ii)~một bước giải mã-và-hiệu-chuẩn thời gian thực giúp cải thiện bất kỳ mô hình nào đã huấn luyện mà không cần huấn luyện lại. Nghiên cứu loại bỏ cho thấy việc đánh trọng số lớp và nhiệm vụ dụng cụ cộng lại đáng giá gần bốn điểm Macro-F1, ngang với khoảng cách giữa các kiến trúc --- nên trên dữ liệu phẫu thuật mất cân bằng, công thức huấn luyện quan trọng ngang với mạng nền.
+
+
+% ======================= Các chương còn lại ==========================
+\input{report_vn_ch3}
+\input{report_vn_ch4}
+\input{report_vn_ch5}
+
+\end{document}

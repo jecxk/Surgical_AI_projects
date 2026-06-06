@@ -1,0 +1,204 @@
+\documentclass[11pt,a4paper]{report}
+
+% ============== Page Setup ==============
+\usepackage[a4paper,top=2.5cm,bottom=2.5cm,left=2.5cm,right=2.5cm]{geometry}
+
+% ============== Packages ==============
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{tikz}
+\usetikzlibrary{calc}
+\usepackage{setspace}
+\usepackage[nottoc]{tocbibind}
+\usepackage{acronym}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage[hidelinks]{hyperref}
+\usepackage[backend=biber,style=ieee]{biblatex}
+\addbibresource{references.bib}
+
+% ============== Typography / Spacing ==============
+\setstretch{1.15}
+\setlength{\parskip}{6pt}
+\setlength{\parindent}{0pt}
+
+% ============== Custom Commands ==============
+\newcommand{\figwidth}{0.85\textwidth}
+
+\begin{document}
+
+% ======================= COVER PAGE ==========================
+\begin{titlepage}
+\thispagestyle{empty}
+\centering
+\begin{tikzpicture}[remember picture, overlay]
+  \draw[line width=0.8pt]
+    ($(current page.north west) + (2cm,-2cm)$)
+    rectangle
+    ($(current page.south east) + (-2cm,2cm)$);
+\end{tikzpicture}
+
+{\bfseries\large UNIVERSITY OF SCIENCE AND TECHNOLOGY OF HANOI\par}
+\vspace{4pt}
+{\bfseries\large DEPARTMENT OF INFORMATION AND COMMUNICATION TECHNOLOGY\par}
+
+\vspace{2.4cm}
+\IfFileExists{figures/logo.png}{
+  \includegraphics[width=6cm]{figures/logo.png}\par
+}{
+  \vspace*{3.5cm}
+}
+\vspace{1.8cm}
+
+{\bfseries\Large BACHELOR'S THESIS REPORT\par}
+\vspace{10pt}
+{\bfseries\Large Automatic Recognition of Surgical Phases in Cholecystectomy Videos: A Comparison of Three Modern Deep-Learning Architectures on Cholec80\par}
+
+\vspace{2.0cm}
+\begin{tabular}{@{}rl@{}}
+\textbf{Submitted by:} & Nguyen Trong Bach\\[10pt]
+\textbf{Supervisor:} & Dr. Vu Trong Sinh\\
+\end{tabular}
+
+\vfill
+{\large June 2026\par}
+\end{titlepage}
+
+% ======================= ACKNOWLEDGEMENTS ==========================
+\chapter*{Acknowledgements}
+\addcontentsline{toc}{chapter}{Acknowledgements}
+
+First and foremost, I would like to express my sincere gratitude to my supervisor, Dr.~Vu Trong Sinh, for his invaluable guidance, continuous support, and deep knowledge of medical imaging. His practical insights and constructive feedback shaped the direction of this work and substantially improved its quality.
+
+I am grateful to the CAMMA research group at the University of Strasbourg for releasing the Cholec80 dataset, without which this study would not have been possible, and to the open-source community behind PyTorch, timm, and scikit-learn, whose tools underpin every experiment reported here.
+
+Finally, I want to thank my family for their unconditional love and unwavering belief in me throughout the long nights of training and debugging. I dedicate this milestone to them.
+
+% ======================= ABSTRACT ==========================
+\chapter*{Abstract}
+\addcontentsline{toc}{chapter}{Abstract}
+
+Surgical phase recognition means labelling each frame of an operation video with the step that is taking place. It is a useful building block for operating-room analytics, skill assessment, and decision support. The Cholec80 dataset of eighty gallbladder-removal videos divides each operation into seven phases. The phases are very unevenly distributed---the most common one covers 42.7\% of frames while the rarest covers only 3.8\%, a ratio of about 11 to 1---and many frames near phase changes look alike, which makes the task hard.
+
+This thesis has two parts. The first is a \textbf{fair comparison of three architectures}: ResNet-50 with a bidirectional LSTM, EfficientNet-B3 with a temporal convolutional network, and Swin-Tiny with a Transformer. All three are trained with exactly the same pipeline---a three-stage schedule, automatic class re-weighting, an extra tool-detection task, label smoothing, and mixed-precision training---so that any difference in results comes from the architecture and not from the training setup. On the held-out test set of twenty videos, the Swin-Transformer reaches a smoothed macro-F1 of \textbf{0.815} (accuracy 0.862), 3.4 points above the ResNet-LSTM and 6.7 points above the EfficientNet-TCN; combining the three models adds a small further gain. Four ablations show that the extra tool task is worth about $+1.6\%$ macro-F1 and class re-weighting about $+2.0\%$---together as large as the gap between the best and worst architecture.
+
+The second part looks at the \textbf{decoding and calibration steps} that most Cholec80 work skips. We add a real-time decoder that uses only past frames: it combines temperature-calibrated predictions with a transition table learned from the training videos. Without retraining the models, it raises test accuracy by $+0.6$ to $+1.7$ points (paired Wilcoxon $p < 0.001$, Cohen's $d > 0.97$) at a cost of 0.013~ms per frame, with the biggest gains near phase changes. Comparing against an offline decoder that may look at the whole video shows that the remaining gap is almost entirely inside long stable phases, not at the phase changes themselves.
+
+Overall, the thesis shows that good surgical phase recognition is possible on an ordinary laptop GPU when training, decoding, and post-processing are designed together, and that on an imbalanced dataset the training recipe matters as much as the choice of architecture.
+
+% ======================= TOC / LOF / LOT ==========================
+\tableofcontents
+\listoffigures
+\listoftables
+
+% ======================= LIST OF ABBREVIATIONS ==========================
+\chapter*{List of Abbreviations}
+\addcontentsline{toc}{chapter}{List of Abbreviations}
+
+\begin{acronym}[MICCAI]
+\acro{AdamW}{Adam with decoupled Weight decay}
+\acro{AUC}{Area Under the ROC Curve}
+\acro{BiLSTM}{Bidirectional Long Short-Term Memory}
+\acro{CNN}{Convolutional Neural Network}
+\acro{ECE}{Expected Calibration Error}
+\acro{fps}{Frames Per Second}
+\acro{HMM}{Hidden Markov Model}
+\acro{LSTM}{Long Short-Term Memory}
+\acro{MICCAI}{Medical Image Computing and Computer Assisted Intervention}
+\acro{NLL}{Negative Log-Likelihood}
+\acro{TCN}{Temporal Convolutional Network}
+\acro{ViT}{Vision Transformer}
+\end{acronym}
+
+% ======================= CHAPTER 1 ==========================
+\chapter{Introduction}
+
+\section{Background and Motivation}
+
+Keyhole surgery produces a large amount of video that is recorded but rarely looked at again. A laparoscopic cholecystectomy---removal of the gallbladder---usually lasts between thirty and ninety minutes and follows a fixed sequence of steps. A system that recognises these steps automatically would help in several ways: writing operative reports, assessing the skill of trainees, estimating how much longer an operation will take, and warning the team when the workflow departs from the expected order~\cite{maierhein2017surgical,vedula2017objective}.
+
+The Cholec80 dataset, released by the CAMMA group at the University of Strasbourg in 2017, is the standard benchmark for this task~\cite{twinanda2017endonet}. It contains eighty cholecystectomy videos recorded at 25 frames per second. Every frame is labelled with one of seven surgical phases and with which of seven instruments are visible. The seven phases---Preparation, Calot's triangle dissection, Clipping and cutting, Gallbladder dissection, Gallbladder packaging, Cleaning and coagulation, and Gallbladder retraction---always occur in the same order, a property this thesis later uses at the decoding stage.
+
+Deep learning is the standard approach. Early systems used a single convolutional network to label each frame on its own; later work added a temporal model---recurrent, convolutional, or attention-based---trained together with the image encoder. The main difficulty, though, is not the model but the data: Cholec80 is dominated by a few long phases, so a model trained without any correction learns to predict those phases for almost everything. This gives a high frame-level accuracy while almost ignoring the short closing phases that are clinically important.
+
+\section{Problem Statement}
+
+Surgical phase recognition on Cholec80 is shaped by three difficulties that this thesis addresses directly.
+
+\textbf{Class imbalance.} Calot's triangle dissection alone makes up 42.7\% of frames, while Gallbladder retraction covers only 3.8\%---a ratio above eleven to one. A model trained without correction learns to predict the common phases, and frame-level accuracy hides this because the common phases are also the easy ones.
+
+\textbf{Comparisons that mix too many factors.} Three families of methods---CNN~+~LSTM, CNN~+~TCN, and CNN~+~Transformer---have each been the best of their time, but published comparisons differ in their data splits, loss functions, batch sizes, sequence lengths, and post-processing. It is therefore hard to tell how much of each reported gain comes from the new architecture and how much from the rest of the training setup.
+
+\textbf{Decoding is often ignored.} Most results assume the whole video is available before any label is produced. Use during surgery, however, needs decoding that uses only past frames---at time $t$ the system may look only at frames up to $t$. How per-frame predictions are turned into a clean phase sequence, and whether the reported confidences can be trusted, both get much less attention than the choice of backbone.
+
+\section{Objectives}
+
+To address these challenges, this thesis pursues the following objectives:
+\begin{enumerate}
+    \item \textbf{Compare three architectures fairly.} Train three representative families (ResNet-50~+~BiLSTM, EfficientNet-B3~+~TCN, Swin-Tiny~+~Transformer) with one identical pipeline, so that any difference in results reflects the architecture alone.
+    \item \textbf{Measure the training recipe.} Use four ablations to find out how much the extra tool task, class re-weighting, sequence length, and temporal smoothing each contribute.
+    \item \textbf{Test combining the models.} Check whether averaging the three models gives a better result than the best single one.
+    \item \textbf{Build a real-time decoder.} Add a decoder that uses only past frames and a transition table learned from training, and compare it with raw predictions, median smoothing, and an offline decoder that may look at the whole video.
+    \item \textbf{Check calibration.} Report how well the predicted confidences match the true accuracy, before and after temperature scaling, and split the errors into frames near phase changes and frames inside phases.
+\end{enumerate}
+
+\section{Thesis Structure}
+
+The remainder of this report is organised as follows:
+\begin{itemize}
+    \item \textbf{Chapter 2 -- Literature Review:} Reviews related work on deep learning for surgical phase recognition, temporal architectures, class imbalance, decoding, and calibration.
+    \item \textbf{Chapter 3 -- Methodology:} Details the dataset, the three architectures, the shared training pipeline, the evaluation metrics, and the proposed causal decoder.
+    \item \textbf{Chapter 4 -- Experiments and Results:} Presents the comparative analysis, the ablation study, the ensemble results, the causal-decoding benchmark, and the boundary-versus-interior error analysis.
+    \item \textbf{Chapter 5 -- Conclusion and Future Work:} Summarises the contributions, distils the key findings, states the limitations, and proposes future directions.
+\end{itemize}
+
+
+% ======================= CHAPTER 2 ==========================
+\chapter{Literature Review}
+
+\section{Surgical Phase Recognition with Deep Learning}
+
+Automatic recognition of surgical workflow on Cholec80 began with \textbf{EndoNet}~\cite{twinanda2017endonet}, which used a single convolutional network with an extra tool-detection task and cleaned up its frame-level predictions with a Hidden Markov Model. EndoNet introduced two ideas that the field still uses: adding a tool-detection task helps the phase predictions, and some form of temporal smoothing is needed because per-frame predictions are noisy. Its accuracy was close to 89\% with a mean F1 around 0.79.
+
+Because a cholecystectomy lasts tens of minutes, the main question is how to use temporal context. The literature has answered this in three ways, each represented by one of the architectures compared in this thesis.
+
+\section{Evolution of Temporal Architectures}
+
+\textbf{Recurrent models.} SV-RCNet~\cite{jin2018svrcnet} combined a ResNet-50 backbone with an LSTM trained end-to-end, giving smoother predictions than EndoNet and a mean accuracy around 85\%. The LSTM carries information forward through time, but it is processed step by step and has trouble keeping very long-range context---a problem when phases last several minutes.
+
+\textbf{Convolutional temporal models.} TeCNO~\cite{czempiel2020tecno} replaced the LSTM with a multi-stage temporal convolutional network on top of per-frame features. Its dilated causal convolutions cover a wide time window at low cost~\cite{lea2017temporal}, and the stages gradually clean up the predictions. TeCNO reached a mean precision near 86\% and showed that convolutional temporal models can match recurrent ones.
+
+\textbf{Attention-based models.} Trans-SVNet~\cite{gao2021transsvnet} put a Transformer on top of per-frame features, letting every frame attend to every other frame regardless of distance~\cite{vaswani2017attention}, and reached roughly 88\% accuracy and 0.85 macro-F1. The \textbf{Swin Transformer}~\cite{liu2021swin} makes attention affordable on images by computing it within shifted local windows; it is the backbone used for the Transformer model in this work.
+
+One recurring lesson is that the training setup can matter more than the architecture. ConvNeXt~\cite{liu2022convnext} showed that a modernised ResNet, trained with the recipes used for Transformers, matches Swin. This is exactly why a fair comparison must keep the training pipeline fixed, as this thesis does.
+
+\section{Handling Class Imbalance in Surgical Datasets}
+
+With an 11:1 imbalance, Cholec80 needs some form of correction. Buda et al.~\cite{buda2018systematic} found that balancing the mini-batches, through oversampling or weighted sampling, works better than reweighting the loss or undersampling. Weighting the loss by inverse class frequency is a related option~\cite{cui2019classbalanced}, and label smoothing~\cite{szegedy2016rethinking} softens the one-hot targets so the model never assigns probability 1.0 to a class, which improves calibration and, on ambiguous datasets, macro-F1. This thesis combines inverse-frequency class weighting, label smoothing, and the extra tool task, and the ablation study in Chapter~4 measures how much each one helps.
+
+\section{Decoding and Temporal Post-processing}
+
+Two ideas come up repeatedly. The first is \emph{temporal smoothing}---median filters that remove isolated flips; these help a little but, when they use a centred window, look at future frames and so are not strictly causal. The second is the fixed \emph{phase order}: cholecystectomy phases never go backwards, which an offline pass over the whole video can enforce with a large effect. That offline decoder, however, needs the complete video, so it is an upper bound rather than something usable during surgery. This thesis builds a \textbf{causal} decoder that uses only past frames and a transition table \emph{learned} from training, and compares it with the above baselines, including a split of where the gains come from (near phase changes versus inside phases)---a comparison not previously reported on Cholec80.
+
+\section{Confidence Calibration in Medical AI}
+
+A model that is 99\% confident but only 80\% accurate is a problem in a clinical setting, where a clinician or another system may act on the reported confidence. Modern deep classifiers tend to be over-confident, and temperature scaling is a simple fix that keeps the accuracy while making the confidences more honest, lowering the Expected Calibration Error~\cite{guo2017calibration}. Calibration is well studied on ordinary image datasets but, to our knowledge, has not been reported for surgical phase recognition. This thesis therefore reports ECE, NLL, and the fitted temperature for all three architectures, and shows that calibrated predictions are what allow the transition table to help inside the decoder.
+
+\section{Positioning This Work}
+
+Published Cholec80 systems reach mean F1 scores between roughly 0.79 (EndoNet) and 0.85 (Trans-SVNet), usually using data-centre GPUs, large batches, and long sequences. This work makes a different trade-off: three architectures, a fixed training set, a single 4~GB laptop GPU, and one identical pipeline---yet reaches 0.815 smoothed macro-F1 with the Transformer, on par with TCN-based work. The point is not a new record number. It is (i)~a clear split of how much performance comes from the architecture versus the training recipe, and (ii)~a real-time decoding-and-calibration step that improves any of the trained models without retraining. The ablation study shows that class weighting and the tool task together are worth nearly four points of macro-F1, as much as the gap between architectures---so on imbalanced surgical data, the training recipe matters as much as the backbone.
+
+
+% ======================= Include remaining chapters ==========================
+\input{chapter3}
+\input{chapter4}
+\input{chapter5}
+
+% ======================= REFERENCES ==========================
+\printbibliography[title={References}]
+
+\end{document}

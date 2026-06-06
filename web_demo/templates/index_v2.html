@@ -1,0 +1,771 @@
+<!doctype html>
+<html lang="vi" data-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nhận dạng giai đoạn phẫu thuật · Surgical Phase Recognition</title>
+  <meta name="description" content="Phân tích video ca mổ cắt túi mật nội soi với causal decoder và calibration." />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Consolas, monospace;
+      --bg: #fafaf9; --bg-subtle: #f5f5f4;
+      --surface: #ffffff; --surface-elevated: #ffffff;
+      --border: #e7e5e4; --border-strong: #d6d3d1;
+      --text: #1c1917; --text-muted: #57534e; --text-subtle: #a8a29e;
+      --accent-1: #0d9488; --accent-2: #6d28d9;
+      --accent-soft: rgba(13, 148, 136, 0.08);
+      --gradient: linear-gradient(135deg, #0d9488 0%, #6d28d9 100%);
+      --gradient-soft: linear-gradient(135deg, rgba(13, 148, 136, 0.10) 0%, rgba(109, 40, 217, 0.10) 100%);
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+      --shadow-md: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.04);
+      --radius-sm: 8px; --radius: 12px; --radius-lg: 16px;
+      --phase-0: #0ea5e9; --phase-1: #10b981; --phase-2: #f59e0b;
+      --phase-3: #ef4444; --phase-4: #8b5cf6; --phase-5: #06b6d4; --phase-6: #ec4899;
+    }
+    [data-theme="dark"] {
+      --bg: #0a0a0f; --bg-subtle: #14141b;
+      --surface: #14141b; --surface-elevated: #1c1c25;
+      --border: #27272a; --border-strong: #3f3f46;
+      --text: #fafafa; --text-muted: #a1a1aa; --text-subtle: #71717a;
+      --accent-1: #2dd4bf; --accent-2: #a78bfa;
+      --accent-soft: rgba(45, 212, 191, 0.10);
+      --gradient: linear-gradient(135deg, #2dd4bf 0%, #a78bfa 100%);
+      --gradient-soft: linear-gradient(135deg, rgba(45, 212, 191, 0.12) 0%, rgba(167, 139, 250, 0.12) 100%);
+    }
+    *,*::before,*::after { box-sizing: border-box; }
+    body {
+      margin:0; font-family:var(--font-sans); font-size:15px; line-height:1.55;
+      color:var(--text); background:var(--bg); -webkit-font-smoothing:antialiased;
+      min-height:100vh;
+    }
+    body::before {
+      content:""; position:fixed; inset:0; pointer-events:none;
+      background: radial-gradient(60% 50% at 20% 0%, var(--accent-soft) 0%, transparent 60%),
+                  radial-gradient(50% 40% at 100% 100%, var(--accent-soft) 0%, transparent 60%);
+      z-index:-1;
+    }
+    h1,h2,h3,h4 { margin:0; line-height:1.25; }
+    .mono { font-family:var(--font-mono); font-variant-numeric:tabular-nums; }
+    .container { max-width:1280px; margin:0 auto; padding:0 24px; }
+
+    /* Nav */
+    .nav {
+      position:sticky; top:0; z-index:50;
+      background:color-mix(in srgb, var(--bg) 80%, transparent);
+      backdrop-filter:saturate(180%) blur(12px);
+      border-bottom:1px solid var(--border);
+    }
+    .nav-inner { display:flex; align-items:center; justify-content:space-between; height:64px; }
+    .brand { display:flex; align-items:center; gap:12px; }
+    .brand-mark {
+      width:36px; height:36px; border-radius:10px;
+      background:var(--gradient); display:grid; place-items:center; color:white;
+    }
+    .brand-mark svg { width:20px; height:20px; }
+    .brand-name { font-weight:700; font-size:16px; }
+    .brand-sub { font-size:12px; color:var(--text-muted); margin-top:-2px; }
+    .nav-actions { display:flex; align-items:center; gap:8px; }
+    .iconbtn {
+      width:38px; height:38px; border-radius:10px;
+      background:transparent; border:1px solid var(--border); color:var(--text-muted);
+      display:grid; place-items:center; cursor:pointer;
+    }
+    .iconbtn:hover { background:var(--bg-subtle); color:var(--text); }
+    .iconbtn svg { width:18px; height:18px; }
+
+    /* Tabs */
+    .tabs {
+      display:inline-flex; padding:4px; gap:4px; background:var(--bg-subtle);
+      border:1px solid var(--border); border-radius:10px; margin: 28px 0 12px;
+    }
+    .tab {
+      border:0; background:transparent; padding:8px 16px; border-radius:7px;
+      font-size:13.5px; font-weight:500; color:var(--text-muted); cursor:pointer;
+      font-family:inherit;
+    }
+    .tab.is-active { background:var(--surface); color:var(--text); box-shadow:var(--shadow-sm); }
+    .panel { display:none; }
+    .panel.is-active { display:block; }
+
+    /* Hero */
+    .hero { padding: 24px 0 16px; }
+    .hero h1 {
+      font-size: clamp(24px, 3.2vw, 32px); font-weight: 700;
+      letter-spacing:-0.02em; margin-bottom: 8px;
+    }
+    .hero h1 .grad {
+      background:var(--gradient); -webkit-background-clip:text; background-clip:text;
+      -webkit-text-fill-color:transparent;
+    }
+    .hero .vi { color:var(--text); }
+    .hero .en { color:var(--text-muted); font-weight:500; font-size:0.7em; display:block; margin-top:4px; }
+    .hero p { color:var(--text-muted); font-size:15px; max-width:680px; margin-top:6px; }
+
+    /* Grid + Card */
+    .grid { display:grid; gap:20px; }
+    .grid-main { grid-template-columns: minmax(0, 360px) minmax(0, 1fr); padding: 12px 0 48px; }
+    @media (max-width: 960px) { .grid-main { grid-template-columns: 1fr; } }
+    .card {
+      background:var(--surface); border:1px solid var(--border);
+      border-radius:var(--radius-lg); padding:22px; box-shadow:var(--shadow-sm);
+    }
+    .card-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+    .card-title { font-size:13px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; }
+    .card-title .en { display:block; font-size:11px; color:var(--text-subtle); text-transform:none; letter-spacing:normal; font-weight:500; margin-top:2px; }
+
+    /* Upload */
+    .upload {
+      border:1.5px dashed var(--border-strong); border-radius:var(--radius);
+      padding:24px 16px; text-align:center; cursor:pointer; background:var(--bg-subtle);
+    }
+    .upload:hover { border-color:var(--accent-1); background:var(--accent-soft); }
+    .upload-icon {
+      width:44px; height:44px; margin:0 auto 12px; border-radius:12px;
+      background:var(--gradient); display:grid; place-items:center; color:white;
+    }
+    .upload-icon svg { width:22px; height:22px; }
+    .upload-title { font-weight:600; font-size:14px; margin-bottom:4px; }
+    .upload-sub { font-size:12px; color:var(--text-muted); }
+    .upload.has-file .upload-title { color:var(--accent-1); }
+
+    /* Field */
+    .field { margin-bottom:18px; }
+    .field:last-child { margin-bottom:0; }
+    .label {
+      display:flex; align-items:center; justify-content:space-between;
+      font-size:13px; font-weight:500; color:var(--text); margin-bottom:6px;
+    }
+    .label .en { color:var(--text-subtle); font-weight:400; font-size:12px; }
+
+    .select, .range {
+      width:100%; padding:9px 12px; border-radius:8px;
+      border:1px solid var(--border); background:var(--surface); color:var(--text);
+      font-family:inherit; font-size:13px;
+    }
+    .range { padding:0; height:6px; background:var(--bg-subtle); -webkit-appearance:none; appearance:none; }
+    .range::-webkit-slider-thumb {
+      -webkit-appearance:none; appearance:none; width:18px; height:18px; border-radius:999px;
+      background:var(--gradient); cursor:pointer; border:2px solid var(--surface);
+    }
+
+    /* Button */
+    .btn {
+      display:inline-flex; align-items:center; justify-content:center; gap:8px;
+      padding:11px 18px; border:0; border-radius:10px;
+      font-size:14px; font-weight:600; cursor:pointer; font-family:inherit;
+      transition:transform 160ms ease, box-shadow 160ms ease;
+    }
+    .btn-primary {
+      background:var(--gradient); color:white;
+      box-shadow: 0 4px 14px color-mix(in srgb, var(--accent-1) 30%, transparent);
+    }
+    .btn-primary:hover { transform: translateY(-1px); }
+    .btn-primary:disabled { opacity:0.55; cursor:not-allowed; transform:none; }
+    .btn-block { display:flex; width:100%; }
+
+    /* Stats */
+    .stats {
+      display:grid; grid-template-columns: repeat(4, 1fr); gap:12px; margin-bottom:20px;
+    }
+    @media (max-width: 720px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+    .stat {
+      padding:14px 16px; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface);
+    }
+    .stat-label {
+      font-size:11px; color:var(--text-subtle); text-transform:uppercase;
+      letter-spacing:0.08em; font-weight:600; margin-bottom:4px;
+    }
+    .stat-label .en { display:block; color:var(--text-subtle); font-size:10px; font-weight:500; letter-spacing:normal; text-transform:none; margin-top:2px; }
+    .stat-value { font-size:20px; font-weight:700; }
+    .stat-value.mono { font-size:18px; }
+
+    /* Timeline */
+    .timeline-wrap { display:flex; flex-direction:column; gap:10px; margin-top:6px; }
+    .timeline {
+      height:36px; width:100%; border-radius:10px; overflow:hidden; display:flex;
+      border:1px solid var(--border); background:var(--bg-subtle);
+    }
+    .timeline-seg { height:100%; transition: filter 120ms ease; position:relative; }
+    .timeline-seg:hover { filter:brightness(1.08); }
+    .timeline-axis { display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:11px; color:var(--text-subtle); }
+
+    /* Legend */
+    .legend { display:flex; flex-wrap:wrap; gap:8px 14px; margin-top:14px; padding-top:14px; border-top:1px solid var(--border); }
+    .legend-item { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--text-muted); }
+    .legend-swatch { width:12px; height:12px; border-radius:3px; }
+
+    /* Frame samples */
+    .samples {
+      display:grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap:10px; margin-top: 24px;
+    }
+    .sample {
+      border:1px solid var(--border); border-radius:var(--radius); overflow:hidden;
+      background:var(--surface);
+    }
+    .sample img { width:100%; display:block; aspect-ratio: 16/9; object-fit: cover; }
+    .sample-body { padding: 8px 10px; }
+    .sample-time { font-family:var(--font-mono); font-size:11px; color:var(--text-subtle); }
+    .sample-phase { font-size:12.5px; font-weight:600; margin-top:2px; }
+    .sample-phase-en { font-size:11px; color:var(--text-subtle); }
+    .sample-raw { font-size:10.5px; color:var(--text-subtle); margin-top:4px; }
+
+    /* Benchmark table */
+    table.bench {
+      width:100%; border-collapse:collapse; font-size:13px; margin-top:8px;
+    }
+    table.bench th, table.bench td { padding:9px 12px; border-bottom:1px solid var(--border); text-align:left; }
+    table.bench th { font-weight:600; color:var(--text-muted); font-size:11.5px; text-transform:uppercase; letter-spacing:0.04em; background:var(--bg-subtle); }
+    table.bench td.num { font-family:var(--font-mono); text-align:right; }
+    table.bench tr.highlight td { background: var(--accent-soft); font-weight:600; }
+    table.bench tr.upper td { color:var(--text-subtle); font-style:italic; }
+
+    .empty { padding:48px 24px; text-align:center; color:var(--text-muted); }
+    .empty-illu {
+      width:72px; height:72px; margin:0 auto 12px; border-radius:18px;
+      background:var(--gradient-soft); display:grid; place-items:center; color:var(--accent-1);
+    }
+    .empty-illu svg { width:32px; height:32px; }
+
+    /* About list */
+    .about-grid { display:grid; grid-template-columns: 1fr 1fr; gap:16px; }
+    @media (max-width:720px) { .about-grid { grid-template-columns: 1fr; } }
+    .feature {
+      border:1px solid var(--border); border-radius:var(--radius);
+      padding:18px; background:var(--surface);
+    }
+    .feature h3 { font-size:14px; margin-bottom:4px; }
+    .feature h3 .en { display:block; font-size:11.5px; color:var(--text-subtle); font-weight:500; margin-top:2px; }
+    .feature p { font-size:13px; color:var(--text-muted); margin:8px 0 0; }
+    .feature .num { font-family:var(--font-mono); font-size:22px; font-weight:700; color:var(--accent-1); margin-top:8px; }
+
+    .footnote { font-size:12px; color:var(--text-subtle); margin-top:24px; }
+  </style>
+</head>
+<body>
+
+<!-- Nav -->
+<header class="nav">
+  <div class="container nav-inner">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2L4 7v6c0 5 3.5 9 8 11 4.5-2 8-6 8-11V7l-8-5z"/></svg>
+      </div>
+      <div>
+        <div class="brand-name">Surgical Phase Recognition</div>
+        <div class="brand-sub">Nhận dạng giai đoạn phẫu thuật · Cholec80 · v2</div>
+      </div>
+    </div>
+    <div class="nav-actions">
+      <span class="mono" style="font-size:11px; color:var(--text-subtle);" id="device-pill">device: —</span>
+      <button class="iconbtn" id="theme-toggle" title="Đổi giao diện · Toggle theme">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- Hero -->
+  <div class="hero">
+    <div class="tabs" role="tablist">
+      <button class="tab is-active" data-tab="analyze">Phân tích · Analyze</button>
+      <button class="tab" data-tab="benchmark">Đối chuẩn · Benchmark</button>
+      <button class="tab" data-tab="about">Giới thiệu · About</button>
+    </div>
+    <h1 id="hero-title">
+      <span class="vi">Phân tích video nội soi <span class="grad">theo từng giây</span></span>
+      <span class="en">Per-second analysis of laparoscopic cholecystectomy video</span>
+    </h1>
+    <p id="hero-sub">
+      Tải lên một clip ca mổ, chọn mô hình và bộ decoder. Hệ thống nhận dạng giai đoạn phẫu thuật và dụng cụ xuất hiện trong từng giây.<br />
+      <em>Upload a clip, pick a model and a decoder. The system predicts the surgical phase and active tools for each sampled second.</em>
+    </p>
+  </div>
+
+  <!-- === PANEL: ANALYZE === -->
+  <div class="panel is-active" id="panel-analyze">
+    <div class="grid grid-main">
+
+      <!-- Left: controls -->
+      <aside class="card">
+        <div class="card-header">
+          <div class="card-title">Cấu hình<span class="en">Configuration</span></div>
+        </div>
+
+        <div class="field">
+          <label class="upload" id="dropzone" for="file-input">
+            <input id="file-input" type="file" accept="video/*" hidden />
+            <div class="upload-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            </div>
+            <div class="upload-title" id="upload-title">Tải video lên · Drop video here</div>
+            <div class="upload-sub">MP4, MOV, AVI · tối đa 8 GB</div>
+          </label>
+        </div>
+
+        <div class="field">
+          <div class="label">Mô hình <span class="en">Model</span></div>
+          <select class="select" id="model-select"></select>
+        </div>
+
+        <div class="field">
+          <div class="label">Decoder <span class="en">Post-processing</span></div>
+          <select class="select" id="decoder-select"></select>
+        </div>
+
+        <div class="field">
+          <div class="label">
+            Số mẫu <span class="en">Samples</span>
+            <span class="mono" id="samples-val">48</span>
+          </div>
+          <input id="samples" class="range" type="range" min="12" max="600" step="6" value="48" />
+          <div class="upload-sub" style="margin-top:6px;">Càng nhiều mẫu càng bắt được pha ngắn · <em>More samples capture short phases</em></div>
+        </div>
+
+        <div class="field">
+          <label class="label" for="full-fps" style="cursor:pointer;">
+            <span>Đầy đủ 1 fps (đủ class) <span class="en">Full 1 fps (all classes)</span></span>
+            <input id="full-fps" type="checkbox" style="width:18px; height:18px; accent-color:var(--accent-1);" />
+          </label>
+          <div class="upload-sub">Lấy 1 mẫu mỗi giây — khớp đúng cách đo trong paper, không bỏ sót pha ngắn nhưng chậm hơn.<br /><em>One sample per second — matches the paper protocol; slower but skips nothing.</em></div>
+        </div>
+
+        <button class="btn btn-primary btn-block" id="run-btn" disabled>
+          Phân tích · Analyze
+        </button>
+
+        <div class="footnote" style="margin-top:14px;">
+          Decoder mới (causal HMM + calibration) chạy không cần huấn luyện lại.<br />
+          <em>The proposed decoder runs without retraining.</em>
+        </div>
+      </aside>
+
+      <!-- Right: results -->
+      <main>
+        <div id="results-empty" class="card empty">
+          <div class="empty-illu">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+          </div>
+          <div style="font-size:16px; font-weight:600; margin-bottom:6px;">Chưa có video để phân tích</div>
+          <div style="font-size:13px; color:var(--text-subtle);">No video uploaded yet. Drop a clip on the left to begin.</div>
+        </div>
+
+        <div id="results" style="display:none;">
+          <!-- stats -->
+          <div class="stats">
+            <div class="stat">
+              <div class="stat-label">Mô hình<span class="en">Model</span></div>
+              <div class="stat-value mono" id="s-model">—</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">Decoder<span class="en">Decoder</span></div>
+              <div class="stat-value mono" id="s-decoder">—</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">Số khung mẫu<span class="en">Samples</span></div>
+              <div class="stat-value mono" id="s-samples">—</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">Tốc độ decoder<span class="en">Decoder latency</span></div>
+              <div class="stat-value mono" id="s-latency">—</div>
+            </div>
+          </div>
+
+          <!-- timeline card -->
+          <div class="card" style="margin-bottom:20px;">
+            <div class="card-header">
+              <div class="card-title">Dòng thời gian giai đoạn<span class="en">Phase timeline</span></div>
+            </div>
+            <div class="timeline-wrap">
+              <div class="timeline" id="timeline"></div>
+              <div class="timeline-axis"><span id="t-start">00:00</span><span id="t-end">--:--</span></div>
+            </div>
+            <div class="legend" id="legend"></div>
+          </div>
+
+          <!-- distribution card -->
+          <div class="card" style="margin-bottom:20px;">
+            <div class="card-header">
+              <div class="card-title">Phân bố giai đoạn<span class="en">Phase distribution</span></div>
+            </div>
+            <table class="bench" id="dist-table"></table>
+          </div>
+
+          <!-- frame samples -->
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Khung mẫu<span class="en">Sample frames</span></div>
+            </div>
+            <div class="samples" id="samples-grid"></div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- === PANEL: BENCHMARK === -->
+  <div class="panel" id="panel-benchmark">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Kết quả trên tập kiểm tra<span class="en">Held-out test set · 20 Cholec80 videos (61-80)</span></div>
+      </div>
+      <table class="bench" id="bench-table">
+        <thead>
+          <tr>
+            <th>Mô hình · Model</th>
+            <th>Decoder</th>
+            <th class="num">Acc</th>
+            <th class="num">Macro-F1</th>
+            <th class="num">ms/frame</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <div class="footnote">
+        Số liệu thật từ <span class="mono">results/causal_benchmark.json</span>. Decoder đề xuất (causal HMM + calibration) được làm nổi bật; offline monotonic là trần lý thuyết không dùng được realtime.<br />
+        <em>Real numbers from causal_benchmark.json. Proposed decoder highlighted; offline monotonic is a non-causal upper bound.</em>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px;">
+      <div class="card-header">
+        <div class="card-title">Kiểm định ý nghĩa thống kê<span class="en">Significance test (paired Wilcoxon, 20 videos)</span></div>
+      </div>
+      <table class="bench" id="sig-table">
+        <thead>
+          <tr>
+            <th>Mô hình · Model</th>
+            <th class="num">ΔAcc (%)</th>
+            <th class="num">ΔMacro-F1</th>
+            <th class="num">p-value</th>
+            <th class="num">Cohen's d</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <div class="footnote">
+        So sánh decoder đề xuất với argmax thô trên từng video. p &lt; 0.001 trên cả 3 mô hình, hiệu ứng lớn (d &gt; 0.97).<br />
+        <em>Proposed decoder vs raw argmax, paired by video. p&lt;0.001 across all three models, large effect size.</em>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px;">
+      <div class="card-header">
+        <div class="card-title">Phân tích biên<span class="en">Boundary vs Interior breakdown (M3 Swin)</span></div>
+      </div>
+      <table class="bench" id="bnd-table">
+        <thead>
+          <tr>
+            <th>Decoder</th>
+            <th class="num">Acc tại biên · Boundary acc</th>
+            <th class="num">Acc bên trong · Interior acc</th>
+            <th class="num">Toàn bộ · All</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <div class="footnote">
+        "Biên" = trong vòng ±5 giây quanh điểm chuyển giai đoạn. Decoder đề xuất tốt nhất tại biên, thậm chí hơn cả offline monotonic.<br />
+        <em>Boundary = within ±5 s of any phase transition. Proposed decoder is strongest at boundaries, even beating the offline upper bound.</em>
+      </div>
+    </div>
+  </div>
+
+  <!-- === PANEL: ABOUT === -->
+  <div class="panel" id="panel-about">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Project này làm gì?<span class="en">What this project does</span></div>
+      </div>
+      <p style="font-size:14px; color:var(--text-muted); max-width:760px;">
+        Hệ thống nhận dạng <strong>7 giai đoạn của ca mổ cắt túi mật nội soi</strong> theo từng giây video, đồng thời nhận dạng các dụng cụ xuất hiện trên màn hình. Bên cạnh đó, đóng góp chính của bản v2 là một bộ <strong>decoder causal</strong> (chạy realtime, không nhìn tương lai) kèm <strong>hiệu chỉnh độ tự tin</strong> (temperature scaling) — cải thiện độ chính xác có ý nghĩa thống kê (p &lt; 0.001) mà không cần huấn luyện lại mô hình.<br /><br />
+        <em>The system recognises the seven phases of laparoscopic cholecystectomy per video second and detects active tools. The v2 contribution is a streaming Viterbi decoder with a learned transition prior and temperature calibration — improving accuracy with statistical significance (p&lt;0.001) without retraining.</em>
+      </p>
+
+      <div class="about-grid" style="margin-top:20px;">
+        <div class="feature">
+          <h3>3 kiến trúc<span class="en">3 architectures</span></h3>
+          <div class="num">M1 · M2 · M3</div>
+          <p>ResNet50+BiLSTM · EfficientNet-B3+TCN · Swin-Tiny+Transformer. Tất cả huấn luyện trên RTX 2050 4GB.<br /><em>All trained on a 4 GB laptop GPU.</em></p>
+        </div>
+        <div class="feature">
+          <h3>4 decoder<span class="en">4 decoders</span></h3>
+          <div class="num">argmax → HMM+cal</div>
+          <p>So sánh argmax, median smoothing, causal HMM+calibration (đề xuất), và offline monotonic (trần).<br /><em>Compare four post-processing strategies on the same logits.</em></p>
+        </div>
+        <div class="feature">
+          <h3>40 video test<span class="en">40-video benchmark</span></h3>
+          <div class="num">val 41-60 · test 61-80</div>
+          <p>Calibration đo trên val, accuracy đo trên test theo chuẩn Cholec80.<br /><em>Calibration on val, accuracy on test per standard Cholec80 split.</em></p>
+        </div>
+        <div class="feature">
+          <h3>Ý nghĩa thống kê<span class="en">Statistical significance</span></h3>
+          <div class="num">p &lt; 0.0001</div>
+          <p>Wilcoxon paired test trên 20 video, hiệu ứng lớn (Cohen's d &gt; 0.97).<br /><em>Paired Wilcoxon across 20 test videos, large effect size.</em></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // === Phase palette (must match CSS variables) ===
+  const PHASE_COLORS = ['#0ea5e9','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899'];
+
+  // Theme toggle
+  document.getElementById('theme-toggle').onclick = () => {
+    const root = document.documentElement;
+    root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark';
+  };
+
+  // Tabs
+  document.querySelectorAll('.tab').forEach(t => {
+    t.onclick = () => {
+      document.querySelectorAll('.tab').forEach(x => x.classList.toggle('is-active', x === t));
+      document.querySelectorAll('.panel').forEach(p => {
+        p.classList.toggle('is-active', p.id === 'panel-' + t.dataset.tab);
+      });
+      if (t.dataset.tab === 'benchmark') loadBenchmark();
+    };
+  });
+
+  // Models + decoders
+  const modelSelect = document.getElementById('model-select');
+  const decoderSelect = document.getElementById('decoder-select');
+  const devicePill = document.getElementById('device-pill');
+  let PHASES_VI = [], PHASES_EN = [];
+
+  fetch('/api/models').then(r => r.json()).then(d => {
+    devicePill.textContent = 'device: ' + d.device;
+    PHASES_VI = d.phases_vi; PHASES_EN = d.phases_en;
+    if (!d.models.length) {
+      modelSelect.innerHTML = '<option>(không có model — chưa huấn luyện)</option>';
+    } else {
+      // Default to the strongest model (M3 Swin) if present — it has the best
+      // per-class recall, so short phases like Cleaning are less likely to be
+      // missed. Fall back to the first model otherwise.
+      const best = d.models.find(m => m.id === 'swin_tiny_transformer') || d.models[0];
+      modelSelect.innerHTML = d.models.map(m =>
+        `<option value="${m.id}" ${m.id===best.id?'selected':''}>${m.label} · val F1 ${m.val_f1?.toFixed(3) ?? '—'} · T*=${(m.temperature||1).toFixed(2)}</option>`
+      ).join('');
+    }
+    decoderSelect.innerHTML = d.decoders.map(x =>
+      `<option value="${x.id}" ${x.id==='causal_hmm_cal'?'selected':''}>${x.vi} / ${x.en}</option>`
+    ).join('');
+  });
+
+  // Upload
+  const fileInput = document.getElementById('file-input');
+  const dropzone = document.getElementById('dropzone');
+  const uploadTitle = document.getElementById('upload-title');
+  const runBtn = document.getElementById('run-btn');
+  let currentFile = null;
+  fileInput.onchange = e => {
+    if (e.target.files.length) {
+      currentFile = e.target.files[0];
+      uploadTitle.textContent = currentFile.name;
+      dropzone.classList.add('has-file');
+      runBtn.disabled = false;
+    }
+  };
+  ['dragover','dragleave','drop'].forEach(ev => dropzone.addEventListener(ev, e => {
+    e.preventDefault();
+    if (ev === 'drop' && e.dataTransfer.files.length) {
+      currentFile = e.dataTransfer.files[0];
+      uploadTitle.textContent = currentFile.name;
+      dropzone.classList.add('has-file');
+      runBtn.disabled = false;
+    }
+  }));
+
+  // Samples slider
+  const samplesInput = document.getElementById('samples');
+  const samplesVal = document.getElementById('samples-val');
+  const fullFpsInput = document.getElementById('full-fps');
+  samplesInput.oninput = () => samplesVal.textContent = samplesInput.value;
+  // When "Full 1 fps" is on, the slider has no effect — grey it out for clarity.
+  fullFpsInput.onchange = () => {
+    samplesInput.disabled = fullFpsInput.checked;
+    samplesVal.textContent = fullFpsInput.checked ? 'auto (1/s)' : samplesInput.value;
+  };
+
+  // Run analyze
+  runBtn.onclick = async () => {
+    if (!currentFile) return;
+    runBtn.disabled = true; runBtn.textContent = 'Đang phân tích · Analyzing…';
+    const fd = new FormData();
+    fd.append('video', currentFile);
+    fd.append('model', modelSelect.value);
+    fd.append('decoder', decoderSelect.value);
+    fd.append('samples', samplesInput.value);
+    fd.append('full_fps', fullFpsInput.checked ? 'true' : 'false');
+    try {
+      const res = await fetch('/api/analyze', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'unknown');
+      renderResults(data);
+    } catch (e) {
+      alert('Lỗi · Error: ' + e.message);
+    } finally {
+      runBtn.disabled = false; runBtn.textContent = 'Phân tích · Analyze';
+    }
+  };
+
+  function fmtTime(s) {
+    const m = Math.floor(s / 60), sec = Math.floor(s % 60);
+    return `${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+  }
+
+  function renderResults(data) {
+    document.getElementById('results-empty').style.display = 'none';
+    document.getElementById('results').style.display = '';
+    document.getElementById('s-model').textContent = data.model_label;
+    document.getElementById('s-decoder').textContent = data.decoder_label.vi + ' / ' + data.decoder_label.en;
+    document.getElementById('s-samples').textContent = data.results.length;
+    document.getElementById('s-latency').textContent = data.timings.decoder_ms_per_frame.toFixed(3) + ' ms';
+
+    // Timeline
+    const timeline = document.getElementById('timeline');
+    timeline.innerHTML = '';
+    const N = data.results.length;
+    data.results.forEach((r, i) => {
+      const seg = document.createElement('div');
+      seg.className = 'timeline-seg';
+      seg.style.flex = '1 1 0';
+      seg.style.background = PHASE_COLORS[r.phase_id];
+      seg.title = `${fmtTime(r.timestamp)} · ${r.phase_vi} / ${r.phase_en} · conf ${(r.confidence*100).toFixed(1)}%`;
+      timeline.appendChild(seg);
+    });
+    document.getElementById('t-start').textContent = '00:00';
+    document.getElementById('t-end').textContent = fmtTime(data.video.duration_sec);
+
+    // Legend
+    const legend = document.getElementById('legend');
+    legend.innerHTML = PHASES_VI.map((vi, i) =>
+      `<span class="legend-item"><span class="legend-swatch" style="background:${PHASE_COLORS[i]}"></span>${vi} <span style="color:var(--text-subtle)">/ ${PHASES_EN[i]}</span></span>`
+    ).join('');
+
+    // Distribution
+    const dist = document.getElementById('dist-table');
+    dist.innerHTML = '<thead><tr><th>Giai đoạn · Phase</th><th class="num">Khung · Frames</th><th class="num">Tỉ lệ · %</th></tr></thead>'
+      + '<tbody>' + data.distribution.map(d =>
+          `<tr><td><span class="legend-swatch" style="background:${PHASE_COLORS[d.phase_id]}; display:inline-block; margin-right:8px;"></span>${d.phase_vi} <span style="color:var(--text-subtle)">/ ${d.phase_en}</span></td><td class="num">${d.count}</td><td class="num">${(d.fraction*100).toFixed(1)}%</td></tr>`
+        ).join('') + '</tbody>';
+
+    // Sample frames
+    const grid = document.getElementById('samples-grid');
+    grid.innerHTML = data.results.map(r => {
+      const changed = r.phase_id !== r.phase_id_raw;
+      return `<div class="sample">
+        <img src="${r.frame}" loading="lazy" />
+        <div class="sample-body">
+          <div class="sample-time">${fmtTime(r.timestamp)} · conf ${(r.confidence*100).toFixed(0)}%</div>
+          <div class="sample-phase" style="color:${PHASE_COLORS[r.phase_id]}">${r.phase_vi}</div>
+          <div class="sample-phase-en">${r.phase_en}</div>
+          ${changed ? `<div class="sample-raw">raw: ${r.phase_vi_raw} / ${r.phase_en_raw}</div>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // === Benchmark tab ===
+  let benchLoaded = false;
+  async function loadBenchmark() {
+    if (benchLoaded) return;
+    benchLoaded = true;
+    try {
+      const data = await fetch('/api/benchmark').then(r => r.json());
+      renderBenchmark(data);
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  function renderBenchmark(data) {
+    const tb = document.querySelector('#bench-table tbody');
+    if (!data.benchmark) {
+      tb.innerHTML = '<tr><td colspan="5" class="empty">Chưa có benchmark · No benchmark data found. Run scripts/eval_causal.py first.</td></tr>';
+      return;
+    }
+    const MODEL_LABEL = {
+      'M1_resnet_lstm':       'M1 · ResNet50+LSTM',
+      'M2_effnet_tcn':        'M2 · EffNet-B3+TCN',
+      'M3_swin_transformer':  'M3 · Swin+Transformer',
+    };
+    const DECODER_LABEL = {
+      'argmax_raw':           'Argmax thô / Raw',
+      'median15':             'Median-15 (truyền thống)',
+      'offline_monotonic':    'Offline monotonic (trần)',
+      'causal_argmax':        'Causal argmax',
+      'causal_monotonic':     'Causal monotonic',
+      'causal_hmm':           'Causal HMM',
+      'causal_monotonic_cal': 'Causal monotonic + cal',
+      'causal_hmm_cal':       'Causal HMM + cal (đề xuất)',
+    };
+    const ORDER = ['argmax_raw','median15','causal_monotonic','causal_hmm','causal_monotonic_cal','causal_hmm_cal','offline_monotonic'];
+
+    let html = '';
+    for (const mk of Object.keys(data.benchmark.results_per_model)) {
+      const m = data.benchmark.results_per_model[mk];
+      for (const tag of ORDER) {
+        if (!m[tag]) continue;
+        const r = m[tag];
+        const rowCls = tag === 'causal_hmm_cal' ? 'highlight' : (tag === 'offline_monotonic' ? 'upper' : '');
+        html += `<tr class="${rowCls}">
+          <td>${MODEL_LABEL[mk] || mk}</td>
+          <td>${DECODER_LABEL[tag] || tag}</td>
+          <td class="num">${(r.acc*100).toFixed(2)}%</td>
+          <td class="num">${r.macroF1.toFixed(3)}</td>
+          <td class="num">${r.ms_per_frame.toFixed(3)}</td>
+        </tr>`;
+      }
+    }
+    tb.innerHTML = html;
+
+    // Significance
+    const sigT = document.querySelector('#sig-table tbody');
+    if (data.significance) {
+      sigT.innerHTML = Object.entries(data.significance).map(([mk, v]) =>
+        `<tr>
+          <td>${MODEL_LABEL[mk] || mk}</td>
+          <td class="num">+${v.delta_acc_pct.toFixed(2)}</td>
+          <td class="num">+${v.delta_f1.toFixed(3)}</td>
+          <td class="num">${v.wilcoxon_acc_p < 0.0001 ? '< 0.0001' : v.wilcoxon_acc_p.toFixed(4)}</td>
+          <td class="num">${v.cohens_d_acc.toFixed(2)}</td>
+        </tr>`
+      ).join('');
+    } else {
+      sigT.innerHTML = '<tr><td colspan="5" class="empty">Run scripts/eval_significance.py</td></tr>';
+    }
+
+    // Boundary breakdown (M3)
+    const bndT = document.querySelector('#bnd-table tbody');
+    if (data.boundary && data.boundary['M3_swin_transformer']) {
+      const m3 = data.boundary['M3_swin_transformer'];
+      bndT.innerHTML = ORDER.filter(t => m3[t]).map(t => {
+        const r = m3[t];
+        const cls = t === 'causal_hmm_cal' ? 'highlight' : (t === 'offline_monotonic' ? 'upper' : '');
+        return `<tr class="${cls}">
+          <td>${DECODER_LABEL[t] || t}</td>
+          <td class="num">${r.boundary.acc.toFixed(2)}%</td>
+          <td class="num">${r.interior.acc.toFixed(2)}%</td>
+          <td class="num">${r.all.acc.toFixed(2)}%</td>
+        </tr>`;
+      }).join('');
+    } else {
+      bndT.innerHTML = '<tr><td colspan="4" class="empty">Run scripts/eval_boundary.py</td></tr>';
+    }
+  }
+</script>
+
+</body>
+</html>

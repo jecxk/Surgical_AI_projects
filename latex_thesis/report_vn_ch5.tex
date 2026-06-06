@@ -1,0 +1,44 @@
+% ======================= CHƯƠNG 5: KẾT LUẬN ==========================
+\chapter{Kết luận và Hướng Phát triển}
+
+\section{Tóm tắt Đóng góp}
+
+Khóa luận này nghiên cứu nhận dạng pha phẫu thuật trên Cholec80 trên một GPU laptop duy nhất, xoay quanh hai phần gắn kết với nhau.
+
+Phần thứ nhất là một \textbf{so sánh công bằng giữa ba kiến trúc}. ResNet-50~+~BiLSTM, EfficientNet-B3~+~TCN, và Swin-Tiny~+~Transformer được huấn luyện bằng một pipeline giống hệt nhau (lịch trình ba giai đoạn, tái cân bằng lớp, nhiệm vụ dụng cụ phụ, làm mượt nhãn, và huấn luyện độ chính xác hỗn hợp) trên một GPU 4~GB duy nhất. Giữ cố định công thức huấn luyện giúp tách riêng ảnh hưởng của kiến trúc: Swin-Transformer đạt Macro-F1 đã làm mượt là 0,815, cao hơn ResNet-LSTM 3,4 điểm và cao hơn EfficientNet-TCN 6,7 điểm. Bốn nghiên cứu loại bỏ sau đó cho thấy nhiệm vụ dụng cụ đáng giá khoảng $+1{,}6\%$ Macro-F1 và tái cân bằng lớp khoảng $+2{,}0\%$, còn việc kết hợp ba mô hình thêm 1,0 điểm nữa.
+
+Phần thứ hai nhắm vào \textbf{bước giải mã và hiệu chuẩn} mà phần lớn công trình Cholec80 bỏ qua. Một bộ giải mã thời gian thực, kết hợp các dự đoán đã hiệu chuẩn nhiệt độ với một bảng chuyển pha học được, đã được thêm vào. Không cần huấn luyện lại các mô hình, nó nâng độ chính xác trên tập kiểm tra thêm $+0{,}6$ đến $+1{,}7$ điểm trên cả ba mô hình --- một mức tăng nhỏ nhưng, theo kiểm định ghép cặp, là rõ ràng và nhất quán --- với chi phí 0,013~ms mỗi khung hình. Việc tách lỗi cho thấy bộ giải mã mạnh nhất đúng ở nơi các mô hình yếu nhất (tại các điểm chuyển pha), và rằng phần khoảng cách còn lại so với cận trên ngoại tuyến nằm hoàn toàn bên trong các pha.
+
+\section{Các Phát hiện Chính}
+
+Ba phát hiện vượt ra ngoài tập dữ liệu và các mô hình cụ thể được nghiên cứu.
+
+\textbf{Công thức huấn luyện quan trọng ngang với kiến trúc.} Đánh trọng số lớp và nhiệm vụ dụng cụ cộng lại đáng giá gần bốn điểm Macro-F1 --- gần bằng khoảng cách giữa kiến trúc tốt nhất và kém nhất. Trên một tập dữ liệu phẫu thuật mất cân bằng, cách huấn luyện mô hình quan trọng ngang với việc dùng mạng nền nào. Điều này dễ bị bỏ sót khi một so sánh thay đổi cả kiến trúc lẫn công thức cùng lúc, đó chính là điều mà pipeline cố định ở đây muốn tránh.
+
+\textbf{Hiệu chuẩn là thứ làm cho bảng chuyển pha trở nên hữu ích.} Co giãn nhiệt độ thường được biện minh chỉ bằng độ tin cậy, nhưng ở đây nó có một vai trò thứ hai: bộ giải mã cộng các điểm số đã hiệu chuẩn với trọng số chuyển pha lại với nhau, nên nếu các điểm số quá nhọn thì bảng bị bỏ qua. Hiệu chuẩn các điểm số là thứ cho phép trình tự pha học được phát huy tác dụng, đó là lý do bộ giải mã có hiệu chuẩn luôn thắng bộ không hiệu chuẩn.
+
+\textbf{Lợi ích của việc nhìn trước nằm bên trong các pha.} Ưu thế của bộ giải mã ngoại tuyến so với bộ giải mã thời gian thực tốt nhất gần như hoàn toàn là việc sửa các lỗi thoáng qua bên trong các pha dài, ổn định bằng các khung hình tương lai --- chứ không phải đặt các điểm chuyển pha chính xác hơn. Vậy nên một hệ thống thời gian thực hy sinh khả năng sửa các lỗi nhỏ bên trong pha, chứ không phải độ chính xác ở ranh giới. Do đó cho phép bộ giải mã nhìn trước vài giây là bước tiếp theo tự nhiên.
+
+\section{Hạn chế}
+
+Một số ràng buộc giới hạn các kết luận của nghiên cứu này:
+
+\begin{itemize}
+    \item \textbf{Phần cứng hạn chế.} GPU 4~GB buộc phải dùng kích thước lô và độ dài chuỗi nhỏ. Kết quả trên phần cứng lớn hơn có thể cao hơn một đến ba điểm, và riêng EfficientNet-TCN bị cắt ngắn giai đoạn tinh chỉnh thứ ba, nên các con số của nó là cận dưới chứ không phải một ước lượng công bằng.
+    \item \textbf{Một tập dữ liệu.} Mọi kết quả đều từ Cholec80. Các quy trình có trình tự pha kém chặt chẽ hơn có thể cần một bảng chuyển pha lỏng hơn, và việc chuyển sang các ca phẫu thuật khác chưa được kiểm chứng.
+    \item \textbf{Nhiễu nhãn ở điểm chuyển pha.} Thời điểm chính xác của mỗi chuyển pha trong Cholec80 không chính xác tuyệt đối, điều này đặt một trần lên độ chính xác đạt được ở gần điểm chuyển pha; trần này không được đo ở đây.
+    \item \textbf{Lấy mẫu thưa trong bản demo trực tiếp.} Bản demo tương tác bỏ bớt khung hình để chạy nhanh, nên các pha kết thúc ngắn có thể bị bỏ sót ở tốc độ lấy mẫu thấp. Tuy nhiên, các con số benchmark được báo cáo dùng đầy đủ giao thức 1~fps và không bị ảnh hưởng.
+\end{itemize}
+
+\section{Hướng Phát triển}
+
+Các hướng mở rộng trực tiếp nhất nhắm vào các hạn chế này:
+
+\begin{itemize}
+    \item \textbf{Nhìn trước trong độ trễ giới hạn.} Một bộ giải mã được phép nhìn trước vài giây sẽ thu hẹp phần lớn khoảng cách bên trong pha so với cận trên ngoại tuyến trong khi vẫn giữ độ trễ nhỏ, giải quyết đúng nút thắt tìm thấy ở Mục~\ref{sec:vn_boundary}.
+    \item \textbf{Huấn luyện lại trên phần cứng lớn hơn.} Chạy lại đúng ba kiến trúc với lô lớn hơn và chuỗi dài hơn sẽ làm rõ bao nhiêu phần khoảng cách so với kết quả tốt nhất đã công bố là do phần cứng chứ không phải kiến trúc.
+    \item \textbf{Ước lượng độ bất định.} Thêm dropout Monte-Carlo hoặc độ bất định dựa trên ensemble, bên trên việc hiệu chuẩn đã làm, sẽ cho mỗi dự đoán một giá trị độ tin cậy mà bác sĩ có thể dùng.
+    \item \textbf{Các quy trình phẫu thuật khác.} Huấn luyện lại trên các ca phẫu thuật khác có nhãn quy trình sẽ kiểm tra xem pipeline và bộ giải mã dùng bảng học được có hoạt động ngoài ca cắt túi mật hay không.
+\end{itemize}
+
+Tóm lại, khóa luận này cho thấy có thể nhận dạng pha phẫu thuật tốt trên một GPU laptop thông thường khi huấn luyện, giải mã và hậu xử lý được thiết kế cùng nhau --- và rằng các bước giải mã và hiệu chuẩn, vốn thường bị xem là phụ, lại mang đến một cải thiện thực sự, đo lường được, và theo thời gian thực.

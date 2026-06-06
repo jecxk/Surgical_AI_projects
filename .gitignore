@@ -41,3 +41,18 @@ venv/
 # --- Temp ---
 tmp/
 *.part
+
+# --- LaTeX build artifacts (sources + figures + PDFs are force-added) ---
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.lof
+*.lot
+*.out
+*.toc
+*.run.xml
+*.xdv
+*.synctex.gz
